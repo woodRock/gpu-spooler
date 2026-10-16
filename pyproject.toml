@@ -10,7 +10,8 @@ requires-python = ">=3.10"
 dependencies = ["tomli; python_version < \"3.11\""]
 
 [project.optional-dependencies]
-test = ["pytest"]
+tui = ["textual>=1.0"]
+test = ["pytest", "textual>=1.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -18,3 +19,4 @@ where = ["."]
 [project.scripts]
 task = "gpu_spooler.task:main"
 gpu-status = "gpu_spooler.gpu_status:main"
+tui = "gpu_spooler.tui:main"

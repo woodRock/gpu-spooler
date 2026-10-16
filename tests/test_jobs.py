@@ -94,7 +94,7 @@ def _row(id, n, mem=0, spec=None):
 
 
 def test_assign_bin_packs_and_filters():
-    from gpu_spooler.task import assign_tasks, host_states
+    from gpu_spooler.daemon import assign_tasks, host_states
     cfg = _cfg()
     results = {
         "small": ServerResult("small", True, gpus=_gpus(2, [False, True])),
@@ -115,7 +115,7 @@ def test_assign_bin_packs_and_filters():
 
 
 def test_assign_min_mem_uses_detected_memory():
-    from gpu_spooler.task import assign_tasks, host_states
+    from gpu_spooler.daemon import assign_tasks, host_states
     cfg = _cfg()
     results = {"small": ServerResult("small", True, gpus=_gpus(2, mib=46068))}
     states = host_states(cfg, results, [])
@@ -125,7 +125,7 @@ def test_assign_min_mem_uses_detected_memory():
 
 
 def test_db_migration_from_old_schema(tmp_path, monkeypatch):
-    from gpu_spooler import task
+    from gpu_spooler import core as task
     db = tmp_path / "tasks.db"
     con = sqlite3.connect(db)
     con.executescript('''CREATE TABLE tasks (

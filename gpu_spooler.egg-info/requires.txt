@@ -4,3 +4,7 @@ tomli
 
 [test]
 pytest
+textual>=1.0
+
+[tui]
+textual>=1.0

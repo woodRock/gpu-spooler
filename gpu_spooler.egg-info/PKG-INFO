@@ -1,8 +1,11 @@
 Metadata-Version: 2.4
 Name: gpu-spooler
 Version: 0.1.0
-Summary: GPU task spooler for VUW ECS GPU servers
+Summary: GPU task spooler that queues jobs onto SSH-reachable GPU servers
 Requires-Python: >=3.10
 Requires-Dist: tomli; python_version < "3.11"
+Provides-Extra: tui
+Requires-Dist: textual>=1.0; extra == "tui"
 Provides-Extra: test
 Requires-Dist: pytest; extra == "test"
+Requires-Dist: textual>=1.0; extra == "test"

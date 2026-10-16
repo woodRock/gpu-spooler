@@ -21,6 +21,7 @@ Jobs run **detached** on the server. Closing your laptop, losing wifi or restart
   - [Submitting Tasks](#submitting-tasks)
   - [Inspecting Tasks](#inspecting-tasks)
   - [Managing Tasks](#managing-tasks)
+  - [Interactive UI (`tui`)](#interactive-ui-tui)
   - [GPU Status](#gpu-status)
   - [Cluster Operations](#cluster-operations)
   - [Hosts & Connections](#hosts--connections)
@@ -73,7 +74,15 @@ cd task-spooler
 bash install.sh
 ```
 
-The installer creates a `.venv` in the project directory, installs the package in editable mode, and symlinks `task` and `gpu-status` into `~/.local/bin`.
+The installer creates a `.venv` in the project directory, installs the package in editable mode (with the optional [Textual](https://textual.textualize.io) dependency for `tui`), and symlinks `task`, `gpu-status` and `tui` into `~/.local/bin`.
+
+There are three commands:
+
+- **`task`** is the non-interactive CLI. It's the one to use from scripts and tools such as Claude Code. It only needs the standard library.
+- **`tui`** is an interactive view of the queue, logs and GPUs.
+- **`gpu-status`** prints a one-off GPU availability table.
+
+`task` and `tui` are thin front ends over the same code (`gpu_spooler/core.py`), so they always behave the same way.
 
 If `~/.local/bin` is not in your `PATH`, add this to your `~/.bashrc` or `~/.zshrc`:
 
@@ -180,6 +189,33 @@ task -G 0 -H local 'python3 make_plots.py && echo done'
 | `task -K` / `task --kill-all` | Kill all running tasks (in parallel), cancel all queued tasks, stop the daemon, clear the task list, and reset the ID counter to 1. |
 | `task -c` / `task --clear` | Remove finished tasks (done/failed/killed/cancelled/lost) from the list and delete their logs and server-side job directories. |
 | `task -w ID` / `task --wait ID` | Block until the specified task finishes. Useful in scripts. |
+| `task -r ID` / `task --resubmit ID` | Queue a copy of a task with the same command, GPUs, VRAM, hosts, label and directory. |
+
+---
+
+### Interactive UI (`tui`)
+
+```bash
+tui
+```
+
+The window shows a live queue table (newest first). Below it are tabs for the selected task's **log**, a **GPU** heatmap, and task **info**.
+
+| Key | Action |
+|-----|--------|
+| `↑` `↓` | Select a task |
+| `k` | Kill a running task or cancel a queued one (asks first) |
+| `r` | Resubmit the selected task (same as `task -r`) |
+| `n` | New task: a form with the same fields as `task -G/-m/-H/-n/-d` |
+| `f` | Follow: show the log full screen (press `f` again to return) |
+| `l` / `g` / `i` | Switch to the log / GPUs / info tab |
+| `c` | Clear finished tasks (same as `task -c`, asks first) |
+| `d` | Start the daemon if it is stopped |
+| `q` | Quit |
+
+The GPU heatmap has one row per server and one cell per GPU. A cell is **green** when the GPU is free, **blue** when one of your tasks is using it (the cell shows the task ID), and **red** when it's in use by someone else (the cell shows their username). `tui` doesn't connect to the servers to get this. It reads `~/.task-spooler/gpu_snapshot.json`, which the daemon refreshes every 30 s while a `tui` is open. So the daemon needs to be running (press `d` to start it).
+
+If Textual isn't installed, `tui` prints how to install it: `pip install -e '.[tui]'`, or re-run `install.sh`.
 
 ---
 
@@ -382,7 +418,8 @@ All state is stored in `~/.task-spooler/`:
 ├── ssh_config.jump
 ├── cm/                 # shared ssh connection sockets
 ├── network.json        # cached network-mode probe
-├── gpu_snapshot.json   # latest GPU query from the daemon
+├── gpu_snapshot.json   # latest GPU query from the daemon (read by tui)
+├── gpu_snapshot.request  # touched by tui to ask for fresh snapshots
 └── logs/
     ├── 1.log           # Output for task 1
     └── ...
@@ -445,7 +482,7 @@ The task is marked `killed`, but the process may still be running. Check and kil
 Tests use pytest. The integration tests start a fake cluster on localhost: four unprivileged `sshd`s (entry, barretts, cuda01 with 2 × A5000, cuda02 with 4 × A40) with a mock `nvidia-smi`. They are skipped if `sshd` isn't available.
 
 ```bash
-.venv/bin/pip install -e '.[test]'
+.venv/bin/pip install -e '.[test]'      # pytest + textual (the tui tests use Textual's test pilot)
 .venv/bin/python -m pytest tests
 
 # Use the fake cluster by hand

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install gpu-spooler CLI tools (task, gpu-status) into ~/.local/bin
+# Install gpu-spooler CLI tools (task, gpu-status, tui) into ~/.local/bin
 # Works on macOS (Homebrew Python) and Linux (conda, venv, or system Python).
 set -e
 
@@ -29,13 +29,16 @@ fi
 VENV_PIP="$VENV_DIR/bin/pip"
 "$VENV_PIP" install --quiet --upgrade pip setuptools
 
-echo "Installing gpu-spooler into venv ..."
-"$VENV_PIP" install --quiet -e "$SCRIPT_DIR"
+echo "Installing gpu-spooler (with the tui extra) into venv ..."
+if ! "$VENV_PIP" install --quiet -e "$SCRIPT_DIR[tui]"; then
+    echo "  Could not install Textual; installing without tui."
+    "$VENV_PIP" install --quiet -e "$SCRIPT_DIR"
+fi
 
 # ── Symlink entry points into ~/.local/bin ────────────────────────────────────
 mkdir -p "$BIN_DIR"
 
-for cmd in task gpu-status; do
+for cmd in task gpu-status tui; do
     src="$VENV_DIR/bin/$cmd"
     dst="$BIN_DIR/$cmd"
     if [ -e "$src" ]; then
@@ -55,5 +58,5 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
     echo "  Then restart your shell or run: source ~/.zshrc"
 else
-    echo "  Done! Run 'task --help' or 'gpu-status --help' to get started."
+    echo "  Done! Run 'task --help', 'gpu-status --help' or 'tui' to get started."
 fi

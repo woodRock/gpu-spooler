@@ -9,7 +9,7 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 from gpu_spooler.config import Host
 from gpu_spooler.transport import Transport, auth_hint
@@ -186,10 +186,35 @@ def query_hosts(transport: Transport, hosts: Iterable[Host], workers: int = 16,
     return transport.fan_out(hosts, lambda h: query_host(transport, h, debug), workers)
 
 
-def write_snapshot(path: Path, results: dict[str, ServerResult], mode: str) -> None:
-    """Write the latest GPU query for other readers (e.g. a future TUI)."""
-    data = {"ts": time.time(), "mode": mode,
-            "hosts": {name: asdict(r) for name, r in results.items()}}
+def result_from_dict(d: dict) -> ServerResult:
+    """Inverse of asdict(ServerResult), for reading gpu_snapshot.json."""
+    gpus = []
+    for g in d.get("gpus", []):
+        procs = [GpuProcess(**p) for p in g.get("processes", [])]
+        gpus.append(GpuInfo(**{k: v for k, v in g.items() if k != "processes"}, processes=procs))
+    return ServerResult(name=d["name"], reachable=d["reachable"], error=d.get("error", ""),
+                        gpus=gpus)
+
+
+def write_snapshot(path: Path, results: dict[str, ServerResult], mode: str,
+                   keep: Optional[Iterable[str]] = None) -> None:
+    """
+    Write the latest GPU query for other readers (the tui). Hosts not in
+    `results` keep their previous entry if listed in `keep`; each host
+    records when it was last queried.
+    """
+    now = time.time()
+    hosts: dict = {}
+    if keep is not None:
+        try:
+            old = json.loads(path.read_text()).get("hosts", {})
+            keep = set(keep)
+            hosts = {n: h for n, h in old.items() if n in keep}
+        except (OSError, ValueError, AttributeError):
+            pass
+    for name, r in results.items():
+        hosts[name] = dict(asdict(r), ts=now)
+    data = {"ts": now, "mode": mode, "hosts": hosts}
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data))
     tmp.replace(path)
