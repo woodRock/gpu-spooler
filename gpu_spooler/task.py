@@ -36,6 +36,7 @@ import signal
 import sqlite3
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -52,105 +53,26 @@ LOGS_DIR   = STATE_DIR / "logs"
 POLL_INTERVAL = 30   # seconds between GPU polls in daemon
 SSH_TIMEOUT   = 15   # seconds for GPU-check SSH calls
 
-# ── Server catalogue ──────────────────────────────────────────────────────────
+# ── Hosts and GPU querying ────────────────────────────────────────────────────
 
 from gpu_spooler.config import ConfigError, config_path, config_template, load_config
+from gpu_spooler.gpu import ServerResult, query_hosts
+from gpu_spooler.transport import Transport, auth_hint
 
 CFG = load_config()
+TRANSPORT = Transport(CFG)
 SERVERS = [h.name for h in CFG.workers()]
 SERVER_INFO = {
     h.name: {"gpu_type": h.gpu_type, "num_gpus": h.num_gpus, "gpu_mem_gb": h.gpu_mem_gb}
     for h in CFG.workers()
 }
 
-# ── GPU querying ──────────────────────────────────────────────────────────────
-
-_REMOTE_CMD = r"""
-GPU_OUT=$(nvidia-smi --query-gpu=index,name,memory.used,memory.free,memory.total,utilization.gpu,compute_mode \
-    --format=csv,noheader,nounits 2>/dev/null) || { echo "ERROR: nvidia-smi failed"; exit 1; }
-PMON_OUT=$(nvidia-smi pmon -c 1 -d 1 2>/dev/null)
-APPS_OUT=$(nvidia-smi --query-compute-apps=gpu_index,pid --format=csv,noheader 2>/dev/null)
-printf 'GPU_INFO\n%s\nPMON_INFO\n%s\nAPPS_INFO\n%s\n' "$GPU_OUT" "$PMON_OUT" "$APPS_OUT"
-printf 'END\n'
-"""
-
-
-def _query_server_free_gpus(server: str) -> Optional[dict[int, bool]]:
-    """
-    Return {gpu_index: is_free} for every GPU on a server, or None if unreachable.
-    """
-    try:
-        r = subprocess.run(
-            ["ssh", "-o", "ConnectTimeout=10",
-             "-o", "StrictHostKeyChecking=no",
-             "-o", "BatchMode=yes", "-o", "LogLevel=ERROR",
-             server, _REMOTE_CMD],
-            capture_output=True, text=True, timeout=20,
-        )
-        if not r.stdout:
-            return None
-    except (subprocess.TimeoutExpired, OSError):
-        return None
-
-    SENTINELS = {"GPU_INFO", "PMON_INFO", "APPS_INFO"}
-    sections: dict[str, list[str]] = {s: [] for s in SENTINELS}
-    cur = None
-    for line in r.stdout.splitlines():
-        s = line.rstrip("\r")
-        if s in SENTINELS:
-            cur = s
-        elif s == "END":
-            break
-        elif cur and s.strip():
-            sections[cur].append(s)
-
-    if not sections["GPU_INFO"]:
-        return None
-
-    gpus: dict[int, bool] = {}
-    for line in sections["GPU_INFO"]:
-        parts = [p.strip() for p in line.split(",")]
-        try:
-            idx = int(parts[0])
-            mem_used = int(parts[2])
-            # Consider GPU busy if > 256MB VRAM is used
-            gpus[idx] = (mem_used < 256)
-        except (ValueError, IndexError):
-            pass
-
-    # Mark busy if any process is seen in pmon
-    for line in sections["PMON_INFO"]:
-        if line.lstrip().startswith("#"):
-            continue
-        parts = line.split()
-        if len(parts) >= 2 and parts[1].isdigit():
-            try:
-                gpus[int(parts[0])] = False
-            except (ValueError, KeyError, IndexError):
-                pass
-
-    # Mark busy if any process is seen in compute apps
-    for line in sections["APPS_INFO"]:
-        parts = [p.strip() for p in line.split(",")]
-        if len(parts) >= 2 and parts[0].isdigit():
-            try:
-                gpus[int(parts[0])] = False
-            except (ValueError, KeyError, IndexError):
-                pass
-
-    return gpus
-
 
 def query_all_servers() -> dict[str, dict[int, bool]]:
     """Query all servers in parallel. Returns {server: {gpu_idx: is_free}}."""
-    out: dict[str, dict[int, bool]] = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-        futures = {pool.submit(_query_server_free_gpus, s): s for s in SERVERS}
-        for f in concurrent.futures.as_completed(futures):
-            result = f.result()
-            if result is not None:
-                out[futures[f]] = result
-    return out
+    results = query_hosts(TRANSPORT, CFG.workers())
+    return {name: {g.index: g.is_free for g in r.gpus}
+            for name, r in results.items() if r.reachable}
 
 
 def assign_tasks(task_rows, server_gpus: dict[str, dict[int, bool]]) -> list[tuple]:
@@ -840,49 +762,39 @@ def cmd_wait(args) -> None:
         print("\nStopped waiting (task still running).")
 
 
-def _run_on_server(server: str, command: str) -> tuple[bool, str]:
-    """SSH to a single server, run command, return (success, combined output)."""
-    try:
-        r = subprocess.run(
-            ["ssh",
-             "-o", f"ConnectTimeout={SSH_TIMEOUT}",
-             "-o", "StrictHostKeyChecking=no",
-             "-o", "BatchMode=yes",
-             "-o", "LogLevel=ERROR",
-             server, f"bash -l -c {shlex.quote('source ~/.bashrc 2>/dev/null || true; ' + command)}"],
-            capture_output=True, text=True, timeout=300,
-        )
-        return r.returncode == 0, (r.stdout + r.stderr).strip()
-    except subprocess.TimeoutExpired:
-        return False, "SSH timed out after 300s"
-    except OSError as e:
-        return False, str(e)
+def _run_on_server(host, command: str) -> tuple[bool, str]:
+    """Run command on one host in a login shell; return (success, combined output)."""
+    inner = "source ~/.bashrc 2>/dev/null || true; " + command
+    rc, out, err = TRANSPORT.run(host, f"exec bash -l -c {shlex.quote(inner)} < /dev/null\n",
+                                 timeout=300)
+    if rc == 124:
+        return False, "timed out after 300s"
+    output = (out + err).strip()
+    hint = auth_hint(err) if rc == 255 else None
+    return rc == 0, f"{output}\n({hint})" if hint else output
 
 
 def cmd_run_all(args) -> None:
     command = args.run_all
-    n = len(SERVERS)
-    print(f"{BOLD}Running on {n} servers:{RESET} {command}\n")
+    hosts = CFG.workers()
+    n = len(hosts)
+    print(f"{BOLD}Running on {n} servers:{RESET} {command}  "
+          f"{DIM}network: {TRANSPORT.describe_mode()}{RESET}\n")
 
     results: dict[str, tuple[bool, str]] = {}
-    lock = __import__("threading").Lock()
+    lock = threading.Lock()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-        futures = {pool.submit(_run_on_server, s, command): s for s in SERVERS}
-        for i, f in enumerate(concurrent.futures.as_completed(futures), 1):
-            server = futures[f]
-            ok, output = f.result()
-            with lock:
-                results[server] = (ok, output)
-                status = _col("OK  ", GREEN) if ok else _col("FAIL", RED)
-                # Show the last non-empty line as a quick summary
-                last = next(
-                    (l for l in reversed(output.splitlines()) if l.strip()), ""
-                )
-                print(
-                    f"  [{i:>2}/{n}] {server:<16} {status}  {_truncate(last, 60)}",
-                    flush=True,
-                )
+    def one(host):
+        ok, output = _run_on_server(host, command)
+        with lock:
+            results[host.name] = (ok, output)
+            status = _col("OK  ", GREEN) if ok else _col("FAIL", RED)
+            # Show the last non-empty line as a quick summary
+            last = next((l for l in reversed(output.splitlines()) if l.strip()), "")
+            print(f"  [{len(results):>2}/{n}] {host.name:<16} {status}  {_truncate(last, 60)}",
+                  flush=True)
+
+    TRANSPORT.fan_out(hosts, one)
 
     ok_count   = sum(1 for ok, _ in results.values() if ok)
     fail_count = n - ok_count
@@ -902,19 +814,64 @@ def cmd_run_all(args) -> None:
     )
 
 
-def cmd_init_config(args) -> None:
-    path = config_path()
-    if path.exists():
-        print(f"{path} already exists; not overwriting.")
+def cmd_hosts(args) -> None:
+    hosts = [h for h in CFG.hosts.values() if h.role == "worker"]
+    mode = TRANSPORT.mode()
+    print(f"{BOLD}Querying {len(hosts)} host(s)...{RESET}", flush=True)
+    results = query_hosts(TRANSPORT, [h for h in hosts if h.enabled])
+
+    hdr = (f"{'HOST':<14} {'KIND':<5} {'GROUP':<8} {'VIA':<16} {'STATUS':<11} "
+           f"{'GPUS':>4} {'CPU':>3}  PATH MAP")
+    print(f"\n{BOLD}{hdr}{RESET}")
+    print("─" * max(len(hdr), 80))
+    for h in hosts:
+        chain = CFG.chain(h)
+        via = "local" if h.is_local else (
+            "→".join(x.alias for x in chain) if (chain and mode == "jump") else "direct")
+        r = results.get(h.name)
+        if not h.enabled:
+            status = _col(f"{'disabled':<11}", DIM)
+        elif r and r.reachable:
+            status = _col(f"{'ok':<11}", GREEN)
+        else:
+            status = _col(f"{'unreachable':<11}", RED)
+        gpus = str(r.total_gpus) if r and r.reachable else "-"
+        pmap = ", ".join(f"{l} → {rem}" for l, rem in h.path_map) or "-"
+        print(f"{h.name:<14} {h.kind:<5} {h.group or '-':<8} {_truncate(via, 16):<16} "
+              f"{status} {gpus:>4} {h.cpu_slots or '-':>3}  {pmap}")
+        if r and not r.reachable and r.error:
+            print(f"{'':14} {_col(_truncate(r.error, 90), DIM)}")
+    print("─" * max(len(hdr), 80))
+    print(f"network: {TRANSPORT.describe_mode()}   config: {CFG.source_label}\n")
+
+
+def _lookup_host(name: str):
+    try:
+        return CFG.get(name)
+    except ConfigError as e:
+        sys.exit(f"task: {e}")
+
+
+def cmd_ssh(args) -> None:
+    host = _lookup_host(args.ssh)
+    argv = TRANSPORT.interactive_argv(host)
+    os.execvp(argv[0], argv)
+
+
+def cmd_connect(args) -> None:
+    mode = TRANSPORT.mode(refresh=True)
+    if mode != "jump":
+        print(f"Network mode is {TRANSPORT.describe_mode()}; no jump hosts to connect.")
+        return
+    failures = TRANSPORT.connect(CFG.workers())
+    if failures:
         sys.exit(1)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(config_template())
-    print(f"Wrote {path}. Edit it, then check with: task --hosts")
+    print("Jump connections are open; the daemon will reuse them.")
 
 
 def cmd_gpu_status(args) -> None:
     from gpu_spooler.gpu_status import main as _gpu_status_main
-    _gpu_status_main()
+    _gpu_status_main([])
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -964,6 +921,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--gpu-status", action="store_true", help="Show GPU availability across servers")
     p.add_argument("--daemon",     action="store_true", help="Start daemon (if not already running)")
     p.add_argument("--stop",       action="store_true", help="Stop the background daemon")
+    p.add_argument("--hosts",      action="store_true",
+                   help="Show configured hosts, reachability and network mode")
+    p.add_argument("--connect",    action="store_true",
+                   help="Open jump-host connections interactively (password/OTP once)")
+    p.add_argument("--ssh",        metavar="HOST",
+                   help="Open an interactive shell on a host via the generated ssh config")
     p.add_argument("--init-config", action="store_true",
                    help="Write a commented hosts.toml template (never overwrites)")
 
@@ -1018,6 +981,12 @@ def main() -> None:
         stop_daemon()
     elif args.init_config:
         cmd_init_config(args)
+    elif args.hosts:
+        cmd_hosts(args)
+    elif args.ssh:
+        cmd_ssh(args)
+    elif args.connect:
+        cmd_connect(args)
     else:
         parser.print_help()
 
