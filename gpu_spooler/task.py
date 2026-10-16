@@ -54,46 +54,13 @@ SSH_TIMEOUT   = 15   # seconds for GPU-check SSH calls
 
 # ── Server catalogue ──────────────────────────────────────────────────────────
 
-SERVERS = [
-    "cuda-small0", "cuda-small1",
-    "cuda00", "cuda01", "cuda02", "cuda03", "cuda04", "cuda05", "cuda06",
-    "cuda07", "cuda08", "cuda09", "cuda10", "cuda11", "cuda12", "cuda13",
-    "cuda14", "cuda15", "cuda16", "cuda17", "cuda18", "cuda19", "cuda20",
-    "cuda21", "cuda22",
-    "gryphon", "red-tomatoes", "piccolo", "the-villa", "bordeaux",
-]
+from gpu_spooler.config import ConfigError, config_path, config_template, load_config
 
+CFG = load_config()
+SERVERS = [h.name for h in CFG.workers()]
 SERVER_INFO = {
-    "cuda-small0":  {"gpu_type": "RTX A4000",    "num_gpus": 4, "gpu_mem_gb": 16},
-    "cuda-small1":  {"gpu_type": "RTX 4000 Ada", "num_gpus": 3, "gpu_mem_gb": 20},
-    "cuda00":       {"gpu_type": "RTX 6000",     "num_gpus": 2, "gpu_mem_gb": 24},
-    "cuda01":       {"gpu_type": "RTX A5000",    "num_gpus": 2, "gpu_mem_gb": 24},
-    "cuda02":       {"gpu_type": "RTX A5000",    "num_gpus": 2, "gpu_mem_gb": 24},
-    "cuda03":       {"gpu_type": "RTX A5000",    "num_gpus": 2, "gpu_mem_gb": 24},
-    "cuda04":       {"gpu_type": "RTX A5000",    "num_gpus": 2, "gpu_mem_gb": 24},
-    "cuda05":       {"gpu_type": "RTX A5000",    "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda06":       {"gpu_type": "RTX A5000",    "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda07":       {"gpu_type": "RTX A5000",    "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda08":       {"gpu_type": "RTX A5000",    "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda09":       {"gpu_type": "RTX 6000",     "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda10":       {"gpu_type": "RTX A5000",    "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda11":       {"gpu_type": "RTX A5000",    "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda12":       {"gpu_type": "RTX 6000",     "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda13":       {"gpu_type": "RTX 6000",     "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda14":       {"gpu_type": "A40",          "num_gpus": 4, "gpu_mem_gb": 48},
-    "cuda15":       {"gpu_type": "A40",          "num_gpus": 4, "gpu_mem_gb": 48},
-    "cuda16":       {"gpu_type": "RTX A6000",    "num_gpus": 3, "gpu_mem_gb": 48},
-    "cuda17":       {"gpu_type": "RTX 6000",     "num_gpus": 3, "gpu_mem_gb": 24},
-    "cuda18":       {"gpu_type": "RTX A6000",    "num_gpus": 3, "gpu_mem_gb": 48},
-    "cuda19":       {"gpu_type": "L4",           "num_gpus": 4, "gpu_mem_gb": 24},
-    "cuda20":       {"gpu_type": "L40S",         "num_gpus": 4, "gpu_mem_gb": 48},
-    "cuda21":       {"gpu_type": "RTX 6000 Ada", "num_gpus": 2, "gpu_mem_gb": 48},
-    "cuda22":       {"gpu_type": "RTX 6000 Ada", "num_gpus": 2, "gpu_mem_gb": 48},
-    "gryphon":      {"gpu_type": "RTX A6000",    "num_gpus": 1, "gpu_mem_gb": 48},
-    "red-tomatoes": {"gpu_type": "RTX A6000",    "num_gpus": 2, "gpu_mem_gb": 48},
-    "piccolo":      {"gpu_type": "RTX A5000",    "num_gpus": 2, "gpu_mem_gb": 24},
-    "the-villa":    {"gpu_type": "RTX A6000",    "num_gpus": 1, "gpu_mem_gb": 48},
-    "bordeaux":     {"gpu_type": "RTX 6000",     "num_gpus": 1, "gpu_mem_gb": 24},
+    h.name: {"gpu_type": h.gpu_type, "num_gpus": h.num_gpus, "gpu_mem_gb": h.gpu_mem_gb}
+    for h in CFG.workers()
 }
 
 # ── GPU querying ──────────────────────────────────────────────────────────────
@@ -935,6 +902,16 @@ def cmd_run_all(args) -> None:
     )
 
 
+def cmd_init_config(args) -> None:
+    path = config_path()
+    if path.exists():
+        print(f"{path} already exists; not overwriting.")
+        sys.exit(1)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(config_template())
+    print(f"Wrote {path}. Edit it, then check with: task --hosts")
+
+
 def cmd_gpu_status(args) -> None:
     from gpu_spooler.gpu_status import main as _gpu_status_main
     _gpu_status_main()
@@ -987,6 +964,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--gpu-status", action="store_true", help="Show GPU availability across servers")
     p.add_argument("--daemon",     action="store_true", help="Start daemon (if not already running)")
     p.add_argument("--stop",       action="store_true", help="Stop the background daemon")
+    p.add_argument("--init-config", action="store_true",
+                   help="Write a commented hosts.toml template (never overwrites)")
 
     # Internal: daemon loop (not for user use)
     p.add_argument("--_daemon-loop", action="store_true", help=argparse.SUPPRESS)
@@ -1037,6 +1016,8 @@ def main() -> None:
         start_daemon()
     elif args.stop:
         stop_daemon()
+    elif args.init_config:
+        cmd_init_config(args)
     else:
         parser.print_help()
 

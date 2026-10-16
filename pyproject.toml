@@ -7,6 +7,10 @@ name = "gpu-spooler"
 version = "0.1.0"
 description = "GPU task spooler for VUW ECS GPU servers"
 requires-python = ">=3.10"
+dependencies = ["tomli; python_version < \"3.11\""]
+
+[project.optional-dependencies]
+test = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["."]
