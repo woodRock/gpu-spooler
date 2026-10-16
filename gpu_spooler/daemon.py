@@ -5,7 +5,9 @@ jobs for completion, syncing their logs. Started by `core.start_daemon()`
 """
 
 import os
+import sys
 import time
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -21,6 +23,13 @@ STATUS_INTERVAL = float(os.environ.get("TASK_SPOOLER_STATUS_INTERVAL", 5))
 LAUNCH_TIMEOUT  = 60
 STATUS_TIMEOUT  = 60
 SNAPSHOT_WANTED = 120  # keep refreshing the GPU snapshot this long after a request
+
+PACKAGE_DIR = Path(__file__).resolve().parent
+
+
+def code_signature() -> tuple:
+    """Changes whenever a source file of the package is edited or updated."""
+    return tuple(sorted((p.name, p.stat().st_mtime) for p in PACKAGE_DIR.glob("*.py")))
 
 # ── Assignment ────────────────────────────────────────────────────────────────
 
@@ -111,6 +120,7 @@ class Daemon:
         self.cfg = core.get_cfg()
         self.transport = core.get_transport()
         self._last_snapshot = 0.0
+        self._code = code_signature()
         self._queued_seen: set[int] = set()
         self._last_dispatch = 0.0
         self._last_status = 0.0
@@ -148,6 +158,7 @@ class Daemon:
             time.sleep(1)
 
     def _tick(self) -> None:
+        self._maybe_restart_on_code_change()
         self._maybe_reload_config()
         now = time.time()
 
@@ -194,6 +205,21 @@ class Daemon:
                            keep=[h.name for h in self.cfg.workers()])
         except OSError as e:
             self._log(f"Cannot write GPU snapshot: {e}")
+
+    def _maybe_restart_on_code_change(self) -> None:
+        """
+        Re-exec with the current code after an update (editable installs pick
+        up edits immediately). Same PID, so the PID file stays valid; running
+        jobs are re-adopted from the database like after any restart.
+        """
+        try:
+            changed = code_signature() != self._code
+        except OSError:
+            return
+        if changed:
+            self._log("Code changed on disk; restarting the daemon to pick it up.")
+            sys.stdout.flush()
+            os.execv(sys.executable, [sys.executable, "-m", "gpu_spooler.daemon"])
 
     def _maybe_reload_config(self) -> None:
         path = config_path()

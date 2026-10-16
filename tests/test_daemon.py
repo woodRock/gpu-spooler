@@ -163,3 +163,21 @@ def test_kill_all_in_parallel(ts):
     while pgrep("sleep 3018") or pgrep("sleep 3019"):
         assert time.time() < deadline, "processes survived -K"
         time.sleep(0.2)
+
+
+def test_daemon_restarts_itself_when_code_changes(ts):
+    import os
+    from pathlib import Path
+    tid = ts.submit("-G", "1", "sleep 6; echo survived")
+    ts.wait_status(tid, "running", 30)
+    pid = int((ts.state / "daemon.pid").read_text())
+    src = Path(__file__).resolve().parent.parent / "gpu_spooler" / "jobs.py"
+    os.utime(src)                                     # looks like an update
+    log = ts.state / "daemon.log"
+    deadline = time.time() + 15
+    while "Code changed on disk" not in log.read_text():
+        assert time.time() < deadline, log.read_text()[-2000:]
+        time.sleep(0.3)
+    os.kill(pid, 0)                                   # same process, re-exec'd
+    r = ts.wait_status(tid, ("done", "failed", "lost"), 30)
+    assert r["status"] == "done" and "survived" in log_body(ts, tid)

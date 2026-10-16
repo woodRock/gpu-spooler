@@ -128,7 +128,7 @@ def cmd_list(args) -> None:
     for r in reversed(rows):
         status  = r["status"]
         color   = STATUS_COLOR.get(status, "")
-        label   = truncate(r["name"] or r["command"], 42)
+        label   = truncate(core.one_line(r["name"] or r["command"]), 42)
         spec    = truncate(r["host_spec"] or "-", 10)
         server  = r["server"] or "-"
         gpus    = r["gpu_indices"] or "-"

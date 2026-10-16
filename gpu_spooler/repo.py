@@ -33,6 +33,13 @@ def sh_path(path: str) -> str:
     return shlex.quote(path)
 
 
+# git may only be on a login shell's PATH (on ECS it's in /usr/pkg/bin), and
+# both our `bash -s` scripts and the remote end of `git push` run non-login.
+FIND_GIT = ("command -v git >/dev/null 2>&1 || "
+            "PATH=\"$(bash -lc 'printf %s \"$PATH\"' </dev/null 2>/dev/null):$PATH\"\n")
+RECEIVE_PACK = "bash -lc 'exec git-receive-pack \"$@\"' git-receive-pack"
+
+
 def _git(root: str, *args: str, timeout: float = 30) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True,
                           timeout=timeout)
@@ -130,7 +137,7 @@ class RemoteState:
 
 
 def check_script(path: str) -> str:
-    return f'''\
+    return FIND_GIT + f'''\
 command -v git >/dev/null 2>&1 || {{ echo "STATE nogit"; exit 0; }}
 P={sh_path(path)}
 if [ ! -e "$P" ]; then echo "STATE missing"
@@ -190,7 +197,7 @@ class SyncResult:
 
 
 def _prepare_script(path: str) -> str:
-    return f'''\
+    return FIND_GIT + f'''\
 command -v git >/dev/null 2>&1 || {{ echo "git is not installed" >&2; exit 3; }}
 P={sh_path(path)}
 if [ ! -e "$P" ]; then
@@ -204,7 +211,7 @@ echo READY
 
 
 def _checkout_script(path: str, commit: str) -> str:
-    return f'''\
+    return FIND_GIT + f'''\
 cd {sh_path(path)} || exit 1
 git checkout -q --detach {shlex.quote(commit)} || exit 5
 echo SYNCED
@@ -226,6 +233,7 @@ def sync(transport: Transport, repo: LocalRepo, target: Target) -> SyncResult:
     try:
         push = subprocess.run(
             ["git", "-C", repo.root, "push", "-q", "--force", "--no-verify",
+             f"--receive-pack={RECEIVE_PACK}",
              f"{host.alias}:{target.path}", f"{commit}:{SYNC_REF}"],
             capture_output=True, text=True, timeout=PUSH_TIMEOUT, env=env)
     except subprocess.TimeoutExpired:

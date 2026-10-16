@@ -206,6 +206,11 @@ def truncate(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def one_line(s: str) -> str:
+    """Collapse newlines/whitespace runs, for table cells."""
+    return " ".join(s.split())
+
+
 def runtime(row) -> Optional[float]:
     started = row["started_at"]
     ended = row["finished_at"] or (time.time() if row["status"] == "running" else None)

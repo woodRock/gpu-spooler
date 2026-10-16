@@ -8,6 +8,7 @@ gpu_spooler/daemon.py
 gpu_spooler/gpu.py
 gpu_spooler/gpu_status.py
 gpu_spooler/jobs.py
+gpu_spooler/repo.py
 gpu_spooler/task.py
 gpu_spooler/transport.py
 gpu_spooler/tui.py
@@ -22,5 +23,6 @@ tests/test_config.py
 tests/test_daemon.py
 tests/test_gpu.py
 tests/test_jobs.py
+tests/test_repo.py
 tests/test_transport.py
 tests/test_tui.py

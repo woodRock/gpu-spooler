@@ -60,7 +60,7 @@ def task_row(r) -> tuple:
         r["gpu_indices"] or "-",
         core.fmt_ts(r["submitted_at"]),
         core.fmt_duration(core.runtime(r)),
-        r["name"] or r["command"],
+        core.one_line(r["name"] or r["command"]),
     )
 
 
@@ -381,7 +381,7 @@ if App is not None:
                 self.notify("Select a queued or running task.", severity="warning")
                 return
             verb = "Cancel" if r["status"] == "queued" else "Kill"
-            label = core.truncate(r["name"] or r["command"], 50)
+            label = core.truncate(core.one_line(r["name"] or r["command"]), 50)
 
             def answer(yes: Optional[bool]) -> None:
                 if yes:
