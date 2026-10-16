@@ -28,6 +28,7 @@ Jobs run **detached** on the server. Closing your laptop, losing wifi or restart
   - [Daemon](#daemon)
 - [Configuration](#configuration)
 - [Working Off Campus](#working-off-campus)
+- [Running Your Git Repos from a Laptop](#running-your-git-repos-from-a-laptop)
 - [Local Host](#local-host)
 - [GPU Servers](#gpu-servers)
 - [State & Logs](#state--logs)
@@ -142,7 +143,7 @@ task -G <N> [options] <command...>
 | `-m GB` / `--min-mem GB` | Only use servers with at least this much VRAM per GPU, e.g. `-m 40` for the 48 GB cards. |
 | `-H SPEC` / `--host SPEC` | Only run on these hosts, groups or tags (comma separated), e.g. `-H cuda14,cuda15` or `-H local`. |
 | `-n LABEL` / `--name LABEL` | Optional human-readable label shown in the task list. |
-| `-d PATH` / `--dir PATH` | Working directory (default: current directory). It is translated with the host's `path_map`. Without a matching entry, the path is used unchanged on the server. |
+| `-d PATH` / `--dir PATH` | Working directory (default: current directory). On the server it becomes the `path_map` translation, or the git repo's copy under `remote_root` (see [Running Your Git Repos from a Laptop](#running-your-git-repos-from-a-laptop)). Otherwise the path is used unchanged. |
 
 **Examples:**
 
@@ -207,6 +208,7 @@ The window shows a live queue table (newest first). Below it are tabs for the se
 | `k` | Kill a running task or cancel a queued one (asks first) |
 | `r` | Resubmit the selected task (same as `task -r`) |
 | `n` | New task: a form with the same fields as `task -G/-m/-H/-n/-d` |
+| `s` | Sync the git repo `tui` was started in (same as `task --sync`) |
 | `f` | Follow: show the log full screen (press `f` again to return) |
 | `l` / `g` / `i` | Switch to the log / GPUs / info tab |
 | `c` | Clear finished tasks (same as `task -c`, asks first) |
@@ -277,6 +279,8 @@ task -R "df -h /vol/ecrg-solar"
 
 | Command | Description |
 |---------|-------------|
+| `task --sync` | Push this git repo's working tree (including uncommitted changes) to its copy on the servers. Takes `-H` and `-d`. |
+| `task --repo-status` | Check whether the servers' copy of this repo matches your working tree. Exits 1 if not. |
 | `task --hosts` | Table of configured hosts: kind, group, route (direct or via jump hosts), live reachability, GPU count, CPU slots and path mappings. Also shows the network mode and where the config came from. |
 | `task --connect` | Log in to each jump host interactively, once. Use this when the jump host wants a password or OTP; the connection then stays open for the daemon. |
 | `task --ssh HOST` | Open an interactive shell on a host through the same route the daemon uses. Useful for debugging. |
@@ -328,7 +332,8 @@ chain = ["woodj4@entry.ecs.vuw.ac.nz", "woodj4@barretts.ecs.vuw.ac.nz"]
 user = "woodj4"
 domain = "ecs.vuw.ac.nz"       # hostname = "<name>.<domain>"
 jump = "ecs"
-path_map = [ { local = "~/code", remote = "/vol/ecrg-solar/woodj4" } ]
+remote_root = "/vol/ecrg-solar/woodj4"   # git repos run from <remote_root>/<repo>
+path_map = [ { local = "~/data", remote = "/vol/ecrg-solar/woodj4/data" } ]
 hosts = ["cuda-small0", "cuda00", "cuda01", "...", "bordeaux"]
 
 [hosts.cuda14]                 # per-host settings override the group
@@ -342,6 +347,7 @@ cpu_slots = 2
 ```
 
 - **Groups** give defaults to their hosts. A host's group names also act as tags, which you can use with `-H`, `gpu-status --server`, and so on. You can add more with `tags = [...]`.
+- **`remote_root`** is where your git repos live on those servers: see [Running Your Git Repos from a Laptop](#running-your-git-repos-from-a-laptop).
 - **`path_map`** translates the working directory when a job runs on that host, using the longest matching prefix. For example, `~/code/proj` on your laptop becomes `/vol/ecrg-solar/woodj4/proj` on ECS. The spooler doesn't copy code. It only translates the path, so the code needs to exist at the remote path.
 - **Jump chain** entries are either `user@host[:port]` or the name of a `[hosts.X]` entry.
 - From the config, the spooler generates `~/.task-spooler/ssh_config.direct` and `ssh_config.jump`, and calls `ssh -F <file>`. Your own `~/.ssh/config` is included last, so settings such as keys and agents still apply.
@@ -358,6 +364,39 @@ Each hop keeps one shared connection (with `ControlPersist`), so the 30 servers 
 - **With OTP + password**, run `task --connect` once and type your password and code. The connection to entry stays open for `jump_control_persist` (12 h by default), and the daemon reuses it. When the daemon reports `authentication failed`, run `task --connect` again.
 
 Jobs run detached on the server. If your laptop sleeps or changes network, the jobs keep running, and the daemon catches up on their output when it can reach the servers again.
+
+---
+
+## Running Your Git Repos from a Laptop
+
+On an ECS machine, your files are on the same NFS as the servers, so jobs simply run in your current directory. A laptop doesn't share that filesystem. So when you submit from inside a **git repo**, the job runs in **that repo's copy on the server** instead:
+
+```
+laptop:  ~/code/myproj/experiments      (git repo root: ~/code/myproj)
+server:  /vol/ecrg-solar/woodj4/myproj/experiments
+         └── remote_root ──────┘ └repo┘ └ same subdirectory ┘
+```
+
+`remote_root` is set per group (or host) in `hosts.toml`. The ECS template uses `/vol/ecrg-solar/woodj4`. The ECS servers share storage, so one copy serves the whole group.
+
+The workflow:
+
+```bash
+cd ~/code/myproj/experiments
+task --sync                   # create/update the copy on the servers
+task -G 1 python3 train.py    # runs in /vol/ecrg-solar/woodj4/myproj/experiments
+# ... edit code ...
+task -G 1 python3 train.py    # warns: "... is at abc1234, but you're at def5678 + uncommitted changes; run `task --sync`"
+task --sync
+task --repo-status            # check without changing anything
+```
+
+- **Submit only checks; it never changes the copy on the server.** If the copy is missing, out of date or has edits made on the server, submit prints a warning and still queues the job. The check is one SSH call per group.
+- **`task --sync` pushes from your laptop**, over the same SSH route as everything else (through the jump hosts when off campus). The servers never need access to GitHub, and unpushed commits work fine.
+- **Uncommitted changes are included.** The sync takes a snapshot of your working tree with `git stash create`, which doesn't touch your local repo or stash. Untracked files (data, outputs) are not copied. Commit them, or put them on the server yourself.
+- On the server, the copy is a normal git repo checked out at that snapshot (detached HEAD). Files you edit on the server are never overwritten. If they conflict, `--sync` fails, and you can sort it out with `task --ssh <host>`. Untracked files there, such as outputs and checkpoints, are left alone.
+- Running jobs share the checkout. Syncing while they run changes the files under them, and `--sync` tells you how many are affected.
+- A `path_map` entry that covers the directory takes precedence over `remote_root`. Directories outside a git repo are used unchanged, as before.
 
 ---
 

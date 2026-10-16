@@ -23,3 +23,4 @@ tests/test_daemon.py
 tests/test_gpu.py
 tests/test_jobs.py
 tests/test_transport.py
+tests/test_tui.py

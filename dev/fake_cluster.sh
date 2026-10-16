@@ -110,6 +110,7 @@ user = "$ME"
 hostname = "127.0.0.1"
 jump = "fake"
 path_map = [ { local = "$D/local-src", remote = "$D/remote-src" } ]
+remote_root = "$D/repos"
 hosts = ["cuda01", "cuda02"]
 
 [hosts.cuda01]
@@ -171,7 +172,7 @@ stop_host() {
 }
 
 cmd_up() {
-  mkdir -p "$D/bin" "$D/run" "$D/state" "$D/busy" "$D/home" "$D/local-src" "$D/remote-src"
+  mkdir -p "$D/bin" "$D/run" "$D/state" "$D/busy" "$D/home" "$D/local-src" "$D/remote-src" "$D/repos"
   chmod 700 "$D"
   [ -f "$D/hostkey" ] || ssh-keygen -q -t ed25519 -N '' -f "$D/hostkey"
   [ -f "$D/id_ed25519" ] || ssh-keygen -q -t ed25519 -N '' -f "$D/id_ed25519"

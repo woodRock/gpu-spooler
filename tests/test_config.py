@@ -169,3 +169,24 @@ def test_cli_list_with_builtin_config(tmp_path):
     r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", "-l"], env=env,
                        capture_output=True, text=True)
     assert r.returncode == 0 and "No tasks." in r.stdout
+
+
+def test_remote_dir_precedence(tmp_path):
+    cfg = parse('''
+[groups.g]
+remote_root = "/vol/me/"
+path_map = [ { local = "/mapped", remote = "/elsewhere" } ]
+hosts = ["h"]
+[hosts.plain]
+[hosts.loc]
+kind = "local"
+''')
+    h, plain, loc = cfg.get("h"), cfg.get("plain"), cfg.get("loc")
+    repo = tmp_path / "proj"
+    (repo / "a" / "b").mkdir(parents=True)
+    assert cfg.remote_dir(h, str(repo / "a" / "b"), str(repo)) == "/vol/me/proj/a/b"
+    assert cfg.remote_dir(h, str(repo), str(repo)) == "/vol/me/proj"
+    assert cfg.remote_dir(h, "/mapped/x", "/mapped") == "/elsewhere/x"     # path_map wins
+    assert cfg.remote_dir(h, str(repo), None) == str(repo)                  # not a git repo
+    assert cfg.remote_dir(plain, str(repo), str(repo)) == str(repo)         # no remote_root
+    assert cfg.remote_dir(loc, str(repo), str(repo)) == str(repo)           # local host

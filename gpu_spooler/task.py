@@ -26,6 +26,10 @@ Management:
   task -w 3 / --wait 3                   block until task 3 finishes
   task -r 3 / --resubmit 3               queue a copy of task 3
 
+Git repos (when submitting from a machine without the servers' filesystem):
+  task --sync                            push this repo's working tree to the servers
+  task --repo-status                     is the servers' copy up to date?
+
 For an interactive view of the queue, logs and GPUs, run `tui`.
 
 Hosts / daemon:
@@ -239,6 +243,37 @@ def cmd_clear(args) -> None:
              if res.failed_hosts else ""))
 
 
+def cmd_sync(args) -> None:
+    info = core.repo_for(args.dir, args.host)
+    print(f"Syncing {BOLD}{info.repo.name}{RESET} ({info.repo.describe()}) to "
+          f"{len(info.copies)} location(s)  {DIM}network: "
+          f"{get_transport().describe_mode()}{RESET}")
+    failed = 0
+    for res in core.sync_repo(info):
+        status = _col("OK  ", GREEN) if res.ok else _col("FAIL", RED)
+        failed += not res.ok
+        print(f"  {res.target.label:<10} {status}  {res.message}")
+    busy = core.running_in([t.path for t in info.copies])
+    if busy:
+        print(_col(f"  Note: {busy} running task(s) use this checkout and now see the new "
+                   "files.", YELLOW))
+    if failed:
+        sys.exit(1)
+
+
+def cmd_repo_status(args) -> None:
+    info = core.repo_for(args.dir, args.host)
+    print(f"{BOLD}{info.repo.name}{RESET}  local: {info.repo.root}  at {info.repo.describe()}")
+    stale = 0
+    for target, problem in core.repo_status(info.repo, info.copies):
+        stale += problem is not None
+        status = _col("up to date", GREEN) if problem is None else _col(problem, YELLOW)
+        print(f"  {target.label:<10} {target.path}  {status}")
+        print(f"  {'':<10} {DIM}used by: {truncate(', '.join(target.members), 70)}{RESET}")
+    if stale:
+        sys.exit(1)
+
+
 def cmd_daemon(args) -> None:
     pid = core.start_daemon()
     if pid is None:
@@ -424,7 +459,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "-d", "--dir", metavar="PATH",
-        help="Working directory (default: current directory; translated by path_map)",
+        help="Working directory (default: current directory; translated by path_map or remote_root)",
     )
 
     # ── Inspection ────────────────────────────────────────────────────────────
@@ -448,6 +483,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--gpu-status", action="store_true", help="Show GPU availability across servers")
     p.add_argument("--daemon",     action="store_true", help="Start daemon (if not already running)")
     p.add_argument("--stop",       action="store_true", help="Stop the background daemon")
+    p.add_argument("--sync",       action="store_true",
+                   help="Push this git repo's working tree to its remote copies (remote_root)")
+    p.add_argument("--repo-status", action="store_true",
+                   help="Check whether the remote copies of this git repo are up to date")
     p.add_argument("--hosts",      action="store_true",
                    help="Show configured hosts, reachability and network mode")
     p.add_argument("--connect",    action="store_true",
@@ -517,6 +556,10 @@ def dispatch(parser, args) -> None:
         cmd_stop(args)
     elif args.resubmit is not None:
         cmd_resubmit(args)
+    elif args.sync:
+        cmd_sync(args)
+    elif args.repo_status:
+        cmd_repo_status(args)
     elif args.init_config:
         cmd_init_config(args)
     elif args.hosts:

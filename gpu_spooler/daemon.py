@@ -358,7 +358,7 @@ class Daemon:
         log_path = core.LOGS_DIR / f"{task_id}.log"
         key      = jobs.new_job_key(task_id)
         wdir     = row["working_dir"]
-        rdir     = wdir if host.is_local else self.cfg.map_path(host, wdir)
+        rdir     = self.cfg.remote_dir(host, wdir, row["repo_root"])
 
         # Reserve in DB before launching, so a daemon restart mid-launch can
         # find (or give up on) the job directory.

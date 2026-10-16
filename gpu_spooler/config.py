@@ -88,6 +88,7 @@ class Host:
     group: Optional[str] = None       # first [groups.X] the host is listed in
     path_map: list[tuple[str, str]] = field(default_factory=list)
     cpu_slots: int = 0
+    remote_root: Optional[str] = None # git repos live at <remote_root>/<repo name>
     enabled: bool = True
     gpu_type: Optional[str] = None
     num_gpus: Optional[int] = None
@@ -179,6 +180,22 @@ class Config:
     def is_mapped(self, host: Host, local_path: str) -> bool:
         return self._path_match(host, local_path) is not None
 
+    def remote_dir(self, host: Host, local_dir: str, repo_root: Optional[str] = None) -> str:
+        """
+        Where a job submitted from local_dir runs on host:
+          1. a matching path_map entry wins;
+          2. inside a git repo with remote_root set:
+             <remote_root>/<repo name>/<path within the repo>;
+          3. otherwise local_dir unchanged (shared filesystem).
+        """
+        if host.is_local:
+            return local_dir
+        if self.is_mapped(host, local_dir) or not (repo_root and host.remote_root):
+            return self.map_path(host, local_dir)
+        rel = os.path.relpath(os.path.realpath(local_dir), os.path.realpath(repo_root))
+        base = f"{host.remote_root}/{os.path.basename(repo_root.rstrip('/'))}"
+        return base if rel == "." else f"{base}/{rel}"
+
 
 # ── Loading ───────────────────────────────────────────────────────────────────
 
@@ -246,7 +263,7 @@ def _spec_alias(hostname: str, taken: set[str]) -> str:
 
 _HOST_KEYS = {
     "kind", "hostname", "user", "port", "jump", "role", "tags", "path_map",
-    "cpu_slots", "enabled", "domain", *INFO_FIELDS,
+    "cpu_slots", "enabled", "domain", "remote_root", *INFO_FIELDS,
 }
 
 
@@ -350,6 +367,7 @@ def parse_config(data: dict) -> Config:
             port=s.get("port"), jump=None if kind == "local" else jump, role=role,
             tags=list(s.get("tags", [])), group=s.get("_group"),
             path_map=_path_map(s.get("path_map"), f"hosts.{hname}"),
+            remote_root=(s.get("remote_root") or "").rstrip("/") or None,
             cpu_slots=int(s.get("cpu_slots", 0)), enabled=bool(s.get("enabled", True)),
             **{k: s.get(k) for k in INFO_FIELDS},
         )
@@ -413,7 +431,11 @@ user = "{user}"
 domain = "ecs.vuw.ac.nz"       # hostname = "<name>.<domain>"
 jump = "ecs"
 cpu_slots = 0
-# Translate local working directories to their path on ECS, e.g. when
+# When you submit from a git repo that isn't on an ECS filesystem (e.g. on your
+# laptop), the job runs in <remote_root>/<repo name>/<same subdirectory>.
+# `task --sync` pushes your working tree there; submit warns if it's stale.
+remote_root = "/vol/ecrg-solar/{user}"
+# Translate other local working directories to their path on ECS, e.g. when
 # submitting from a laptop checkout that mirrors an ECS directory:
 # path_map = [ {{ local = "~/code", remote = "/vol/ecrg-solar/{user}" }} ]
 hosts = [

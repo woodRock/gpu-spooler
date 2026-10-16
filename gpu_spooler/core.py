@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from gpu_spooler import jobs
+from gpu_spooler import jobs, repo
 from gpu_spooler.config import STATE_DIR, Config, ConfigError, Host, load_config
 from gpu_spooler.transport import Transport
 
@@ -101,6 +101,7 @@ _MIGRATIONS = [
     ("host_spec",   "TEXT"),
     ("remote_dir",  "TEXT"),
     ("last_seen",   "REAL"),
+    ("repo_root",   "TEXT"),   # local git repo the task was submitted from
 ]
 
 # Fields reset when a task goes back to the queue for another attempt.
@@ -248,6 +249,8 @@ def task_details(r) -> list[tuple[str, str]]:
     if r["host_spec"]:
         out.append(("Hosts", r["host_spec"]))
     out.append(("Working dir", r["working_dir"]))
+    if r["repo_root"]:
+        out.append(("Git repo", r["repo_root"]))
     if r["remote_dir"] and r["remote_dir"] != r["working_dir"]:
         out.append(("Remote dir", r["remote_dir"]))
     out.append(("Submitted", fmt_ts(r["submitted_at"])))
@@ -351,8 +354,12 @@ def logical_cwd() -> str:
 
 def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = None,
            host_spec: Optional[str] = None, working_dir: Optional[str] = None,
-           start: bool = True) -> Submitted:
-    """Queue a task (and start the daemon unless start=False)."""
+           start: bool = True, check_repo: bool = True) -> Submitted:
+    """
+    Queue a task (and start the daemon unless start=False). When submitted
+    from a git repo, the remote copies are checked and any that are missing or
+    stale produce a warning (check_repo=False skips the ssh round trip).
+    """
     if num_gpus < 0:
         raise TaskError("-G must be 0 (CPU job) or more")
     if not command.strip():
@@ -364,11 +371,15 @@ def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = 
         raise TaskError(f"-H {host_spec}: {e}") from None
     working_dir = os.path.abspath(os.path.expanduser(working_dir)) if working_dir else logical_cwd()
 
+    # Off an ECS filesystem, a git repo is run from its remote copy (see repo.py).
+    local_repo = None if on_ecs_filesystem(working_dir) else repo.find_repo(working_dir)
+
     con = db_open()
     cur = con.execute(
-        "INSERT INTO tasks (command, num_gpus, min_mem, submitted_at, working_dir, name, host_spec) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (command, num_gpus, min_mem or 0, time.time(), working_dir, name, host_spec or None),
+        "INSERT INTO tasks (command, num_gpus, min_mem, submitted_at, working_dir, name, "
+        "host_spec, repo_root) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (command, num_gpus, min_mem or 0, time.time(), working_dir, name, host_spec or None,
+         local_repo.root if local_repo else None),
     )
     con.commit()
     sub = Submitted(cur.lastrowid, command, working_dir, num_gpus, min_mem or 0, name,
@@ -377,14 +388,69 @@ def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = 
     if num_gpus == 0 and not any(h.cpu_slots > 0 for h in candidates):
         sub.warnings.append("no selected host has cpu_slots > 0; this task will stay "
                             "queued (see `task --hosts`).")
-    unmapped = [h.name for h in candidates
-                if not h.is_local and not cfg.is_mapped(h, working_dir)]
+    copies = repo.targets(cfg, candidates, local_repo, working_dir) if local_repo else []
+    covered = {name for t in copies for name in t.members}
+    unmapped = [h.name for h in candidates if not h.is_local and h.name not in covered
+                and not cfg.is_mapped(h, working_dir)]
     if unmapped and not on_ecs_filesystem(working_dir):
         sub.warnings.append(f"{working_dir} has no path_map entry for "
                             f"{truncate(', '.join(unmapped), 40)}; it will be used unchanged there.")
+    if check_repo and copies:
+        sub.warnings += [w for _, w in repo_status(local_repo, copies) if w]
     if start:
         start_daemon()
     return sub
+
+
+def repo_status(local_repo: "repo.LocalRepo", copies: list) -> list[tuple["repo.Target", Optional[str]]]:
+    """(target, problem or None) for each remote copy, checked in parallel."""
+    transport = get_transport()
+    by_host = {t.host.name: t for t in copies}
+    states = transport.fan_out([t.host for t in copies],
+                               lambda h: repo.check(transport, by_host[h.name]))
+    return [(t, repo.staleness(local_repo, t, states[t.host.name])) for t in copies]
+
+
+@dataclass
+class RepoInfo:
+    repo: "repo.LocalRepo"
+    copies: list          # repo.Target
+    working_dir: str
+
+
+def repo_for(working_dir: Optional[str] = None, host_spec: Optional[str] = None) -> RepoInfo:
+    """The local git repo at working_dir and where its remote copies live."""
+    working_dir = os.path.abspath(os.path.expanduser(working_dir)) if working_dir else logical_cwd()
+    local_repo = repo.find_repo(working_dir)
+    if local_repo is None:
+        raise TaskError(f"{working_dir} is not inside a git repo")
+    cfg = get_cfg()
+    try:
+        hosts = cfg.select(host_spec)
+    except ConfigError as e:
+        raise TaskError(f"-H {host_spec}: {e}") from None
+    copies = repo.targets(cfg, hosts, local_repo, working_dir)
+    if not copies:
+        raise TaskError("no selected host has remote_root set (or path_map already covers "
+                        f"{working_dir}); see the Configuration section of the README")
+    return RepoInfo(local_repo, copies, working_dir)
+
+
+def sync_repo(info: RepoInfo) -> list["repo.SyncResult"]:
+    """Push the local working tree to every remote copy (in parallel)."""
+    transport = get_transport()
+    by_host = {t.host.name: t for t in info.copies}
+    results = transport.fan_out([t.host for t in info.copies],
+                                lambda h: repo.sync(transport, info.repo, by_host[h.name]))
+    return [results[t.host.name] for t in info.copies]
+
+
+def running_in(paths: list[str]) -> int:
+    """How many running tasks use a working directory under one of these remote paths."""
+    rows = db_open().execute(
+        "SELECT remote_dir FROM tasks WHERE status='running' AND remote_dir IS NOT NULL").fetchall()
+    return sum(1 for r in rows
+               if any(r[0] == p or r[0].startswith(p.rstrip("/") + "/") for p in paths))
 
 
 def resubmit(task_id: int) -> Submitted:

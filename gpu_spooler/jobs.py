@@ -14,6 +14,8 @@ import shlex
 from dataclasses import dataclass
 from typing import Optional
 
+from gpu_spooler.repo import sh_path
+
 JOBS_DIR = "$HOME/.task-spooler/jobs"
 CHUNK_BYTES = 1048576        # max log bytes fetched per job per poll
 
@@ -24,7 +26,7 @@ def new_job_key(task_id: int) -> str:
 
 def launch_script(key: str, wdir: str, gpus: str, command: str, delay: bool) -> str:
     """Script (for `bash -s`) that starts a job detached and prints `TS_PID <pid>`."""
-    q_wdir = shlex.quote(wdir)
+    q_wdir = sh_path(wdir)
     eof = f"TS_EOF_{key.replace('-', '_')}"
     return f'''\
 D="{JOBS_DIR}/{key}"

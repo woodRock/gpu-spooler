@@ -5,8 +5,9 @@ A front end over gpu_spooler.core, like the `task` CLI: it reads the same
 database and the GPU snapshot the daemon writes, and never runs its own SSH
 fan-out (kill and clear do talk to the job's host, exactly as `task -k` does).
 
-Keys: k kill/cancel · r resubmit · n new task · f follow log (full screen)
-      l log · g GPUs · i info · c clear finished · d start daemon · q quit
+Keys: k kill/cancel · r resubmit · n new task · s sync git repo
+      f follow log (full screen) · l log · g GPUs · i info
+      c clear finished · d start daemon · q quit
 """
 
 import sys
@@ -223,6 +224,7 @@ if App is not None:
             Binding("k", "kill", "Kill"),
             Binding("r", "resubmit", "Resubmit"),
             Binding("n", "new", "New"),
+            Binding("s", "sync", "Sync repo"),
             Binding("f", "follow", "Follow"),
             Binding("l", "tab('log')", "Log"),
             Binding("g", "tab('gpus')", "GPUs"),
@@ -418,6 +420,27 @@ if App is not None:
                 msg += f"\nWarning: {w}"
             self.call_from_thread(self.notify, msg,
                                   severity="warning" if sub.warnings else "information")
+
+        def action_sync(self) -> None:
+            """Same as `task --sync` from the directory tui was started in."""
+            self.notify("Syncing git repo...")
+            self.do_sync()
+
+        @work(thread=True, exclusive=True, group="sync")
+        def do_sync(self) -> None:
+            try:
+                info = core.repo_for()
+                results = core.sync_repo(info)
+            except (core.TaskError, ConfigError) as e:
+                self.call_from_thread(self.notify, str(e), severity="error", timeout=10)
+                return
+            lines = [f"{'OK' if r.ok else 'FAILED'} {r.target.label}: {r.message}" for r in results]
+            busy = core.running_in([t.path for t in info.copies])
+            if busy:
+                lines.append(f"{busy} running task(s) use this checkout.")
+            ok = all(r.ok for r in results)
+            self.call_from_thread(self.notify, "\n".join(lines),
+                                  severity="information" if ok else "error", timeout=12)
 
         def action_clear(self) -> None:
             def answer(yes: Optional[bool]) -> None:
