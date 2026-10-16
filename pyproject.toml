@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gpu-spooler"
 version = "0.1.0"
-description = "GPU task spooler for VUW ECS GPU servers"
+description = "GPU task spooler that queues jobs onto SSH-reachable GPU servers"
 requires-python = ">=3.10"
 dependencies = ["tomli; python_version < \"3.11\""]
 
