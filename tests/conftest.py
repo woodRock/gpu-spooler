@@ -25,11 +25,15 @@ def pytest_configure(config):
 def fake_cluster():
     if not _sshd():
         pytest.skip("sshd not available")
-    r = subprocess.run([str(FAKE_SH), "up"], capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.skip(f"fake cluster failed to start: {r.stderr or r.stdout}")
+    status = subprocess.run([str(FAKE_SH), "status"], capture_output=True, text=True).stdout
+    already_up = (FAKE / "hosts.toml").exists() and "down" not in status
+    if not already_up:
+        r = subprocess.run([str(FAKE_SH), "up"], capture_output=True, text=True)
+        if r.returncode != 0:
+            pytest.skip(f"fake cluster failed to start: {r.stderr or r.stdout}")
     yield FAKE
-    subprocess.run([str(FAKE_SH), "down"], capture_output=True)
+    if not already_up:
+        subprocess.run([str(FAKE_SH), "down"], capture_output=True)
 
 
 def fake(*args: str) -> str:

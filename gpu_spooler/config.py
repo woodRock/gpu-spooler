@@ -115,12 +115,13 @@ class Config:
     control_persist: str = "10m"
     jump_control_persist: str = "12h"
     extra_options: list[str] = field(default_factory=list)
-    source: Optional[Path] = None     # None → built-in default
+    source: Optional[Path] = None
     mtime: float = 0.0
+    builtin: bool = False             # True when no hosts.toml exists
 
     @property
     def source_label(self) -> str:
-        return str(self.source) if self.source else "built-in default"
+        return "built-in default" if self.builtin else str(self.source)
 
     def workers(self) -> list[Host]:
         return [h for h in self.hosts.values() if h.enabled and h.role == "worker"]
@@ -158,10 +159,11 @@ class Config:
     def _path_match(self, host: Host, local_path: str) -> Optional[tuple[str, str]]:
         best = None
         for local, remote in host.path_map:
-            l = local.rstrip("/") or "/"
-            if l == "/" or local_path == l or local_path.startswith(l + "/"):
-                if best is None or len(l) > len(best[0]):
-                    best = (l, remote)
+            # Also match the resolved form, e.g. /tmp vs /private/tmp on macOS.
+            for l in {local.rstrip("/") or "/", os.path.realpath(local)}:
+                if l == "/" or local_path == l or local_path.startswith(l + "/"):
+                    if best is None or len(l) > len(best[0]):
+                        best = (l, remote)
         return best
 
     def map_path(self, host: Host, local_path: str) -> str:
@@ -194,7 +196,7 @@ def builtin_config() -> Config:
             name=name, tags=["ecs"], group="ecs", gpu_type=gpu_type, num_gpus=num_gpus,
             gpu_mem_gb=mem, cpu_cores=cores, sys_mem_gb=sysmem,
         )
-    return Config(hosts=hosts, jumps={}, mode="direct")
+    return Config(hosts=hosts, jumps={}, mode="direct", builtin=True)
 
 
 def load_config(path: Optional[Path] = None) -> Config:

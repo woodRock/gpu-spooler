@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pytest
@@ -16,7 +17,7 @@ def parse(text: str) -> C.Config:
 
 def test_missing_file_gives_builtin(tmp_path):
     cfg = C.load_config(tmp_path / "nope.toml")
-    assert cfg.source is None
+    assert cfg.builtin and cfg.source is None
     assert cfg.mode == "direct"
     assert [h.name for h in cfg.workers()] == C.DEFAULT_SERVERS
     assert len(cfg.workers()) == 30
@@ -126,6 +127,9 @@ path_map = [
     assert cfg.map_path(h, "/Users/j/codex") == "/Users/j/codex"
     assert cfg.map_path(h, "/tmp") == "/tmp"
     assert cfg.is_mapped(h, "/Users/j/code/proj")
+    tmp = os.path.realpath("/tmp")             # /private/tmp on macOS
+    cfg2 = parse('[hosts.h]\npath_map = [ { local = "/tmp", remote = "/r" } ]')
+    assert cfg2.map_path(cfg2.get("h"), tmp + "/x") == "/r/x"
     assert not cfg.is_mapped(h, "/tmp")
 
 
@@ -139,3 +143,29 @@ path_map = [
 def test_errors(bad):
     with pytest.raises(C.ConfigError):
         parse(bad)
+
+
+def test_cli_init_config_never_overwrites(tmp_path):
+    import subprocess
+    from pathlib import Path
+    target = tmp_path / "hosts.toml"
+    env = dict(os.environ, HOME=str(tmp_path), TASK_SPOOLER_CONFIG=str(target),
+               PYTHONPATH=str(Path(__file__).resolve().parent.parent))
+    run = lambda: subprocess.run([sys.executable, "-m", "gpu_spooler.task", "--init-config"],
+                                 env=env, capture_output=True, text=True)
+    r = run()
+    assert r.returncode == 0 and target.exists()
+    assert C.load_config(target).mode == "auto"
+    target.write_text("# mine\n")
+    r = run()
+    assert r.returncode != 0 and target.read_text() == "# mine\n"
+
+
+def test_cli_list_with_builtin_config(tmp_path):
+    import subprocess
+    from pathlib import Path
+    env = dict(os.environ, HOME=str(tmp_path), TASK_SPOOLER_CONFIG=str(tmp_path / "none.toml"),
+               PYTHONPATH=str(Path(__file__).resolve().parent.parent))
+    r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", "-l"], env=env,
+                       capture_output=True, text=True)
+    assert r.returncode == 0 and "No tasks." in r.stdout

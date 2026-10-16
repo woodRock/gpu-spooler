@@ -194,6 +194,8 @@ class Transport:
 
     def describe_mode(self, probe: bool = True) -> str:
         """Human-readable network mode, e.g. 'jump (auto)'."""
+        if self.cfg.builtin:
+            return "direct (built-in config)"
         if self.cfg.mode != "auto":
             return f"{self.cfg.mode} (forced)"
         if self._probe_target() is None:
