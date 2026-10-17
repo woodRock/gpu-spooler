@@ -3,7 +3,7 @@ tui - interactive view of the task-spooler queue, logs and GPUs.
 
 A front end over gpu_spooler.core, like the `task` CLI: it reads the same
 database and the GPU snapshot the daemon writes, and never runs its own SSH
-fan-out (kill and clear do talk to the job's host, exactly as `task -k` does).
+fan-out (kill and clear do talk to the job's host, exactly as `task kill` does).
 
 Keys: k kill/cancel · r resubmit · n new task · s sync git repo
       f follow log (full screen) · l log · g GPUs · i info
@@ -147,7 +147,7 @@ if App is not None:
             self.dismiss(value)
 
     class SubmitScreen(ModalScreen[Optional[dict]]):
-        """Form with the same fields as `task -G/-m/-H/-n/-d CMD`."""
+        """Form with the same fields as `task submit -g/-m/-H/-n/-C CMD`."""
 
         BINDINGS = [("escape", "cancel", "Cancel")]
 
@@ -422,7 +422,7 @@ if App is not None:
                                   severity="warning" if sub.warnings else "information")
 
         def action_sync(self) -> None:
-            """Same as `task --sync` from the directory tui was started in."""
+            """Same as `task sync` from the directory tui was started in."""
             self.notify("Syncing git repo...")
             self.do_sync()
 

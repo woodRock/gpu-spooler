@@ -34,6 +34,24 @@ printf 'END\n'
 """
 
 
+def gpu_model(name: str) -> str:
+    """A GPU name as compared and shown: nvidia-smi's name without a leading 'NVIDIA '."""
+    name = " ".join(name.split())
+    return name[7:] if name.lower().startswith("nvidia ") else name
+
+
+def gpu_type_matches(spec: Optional[str], name: str) -> bool:
+    """
+    Whether a GPU called `name` (by nvidia-smi) satisfies --gpu-type `spec`: one of the
+    comma-separated models, compared exactly, ignoring case and a leading 'NVIDIA '.
+    Exact, not substring: 'RTX 6000' must not also pick the 'RTX 6000 Ada Generation'.
+    """
+    if not spec:
+        return True
+    model = gpu_model(name).lower()
+    return any(gpu_model(t).lower() == model for t in spec.split(",") if t.strip())
+
+
 @dataclass
 class GpuProcess:
     pid: int
@@ -90,6 +108,11 @@ class ServerResult:
     @property
     def free_vram_mb(self) -> int:
         return sum(g.mem_free_mb for g in self.gpus)
+
+    @property
+    def models(self) -> list[str]:
+        """Distinct GPU models on this host, in index order."""
+        return list(dict.fromkeys(gpu_model(g.name) for g in self.gpus))
 
 
 def parse_output(raw: str) -> list[GpuInfo]:

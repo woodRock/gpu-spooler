@@ -44,3 +44,23 @@ def test_parse_old_pmon_format_and_crlf():
 
 def test_parse_empty():
     assert parse_output("") == []
+
+
+def test_gpu_type_matching_is_exact():
+    from gpu_spooler.gpu import gpu_model, gpu_type_matches
+    assert gpu_model("NVIDIA  RTX A5000") == "RTX A5000"
+    assert gpu_type_matches("rtx a5000", "NVIDIA RTX A5000")
+    assert gpu_type_matches("NVIDIA RTX A5000", "RTX A5000")
+    assert not gpu_type_matches("RTX 6000", "NVIDIA RTX 6000 Ada Generation")
+    assert not gpu_type_matches("RTX 6000", "Quadro RTX 6000")
+    assert not gpu_type_matches("RTX A5000", "NVIDIA RTX PRO 5000 Blackwell")
+    assert gpu_type_matches("A40, RTX A5000", "NVIDIA A40")
+    assert gpu_type_matches(None, "anything") and gpu_type_matches("", "anything")
+
+
+def test_server_models_are_distinct_and_ordered():
+    from gpu_spooler.gpu import GpuInfo, ServerResult
+    r = ServerResult("h", True, gpus=[GpuInfo(0, "NVIDIA A40", 1, 0, 1, 0),
+                                      GpuInfo(1, "NVIDIA L4", 1, 0, 1, 0),
+                                      GpuInfo(2, "NVIDIA A40", 1, 0, 1, 0)])
+    assert r.models == ["A40", "L4"]

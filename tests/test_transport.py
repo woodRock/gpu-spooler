@@ -77,7 +77,7 @@ jump = "j"
 def test_fake_cluster_control_sockets_for_each_hop(ts, fake_cluster):
     logs = {h: fake_cluster / "run" / f"sshd_{h}.log" for h in ("entry", "barretts", "cuda01")}
     before = {h: p.read_text().count("Accepted publickey") for h, p in logs.items()}
-    r = ts.run("-R", "echo hi-$FAKE_HOST")
+    r = ts.run("exec", "echo hi-$FAKE_HOST")
     assert "hi-cuda01" in r.stdout and "hi-cuda02" in r.stdout
     socks = os.listdir(ts.state / "cm")
     assert len(socks) == 4          # entry, barretts, cuda01, cuda02
@@ -85,18 +85,18 @@ def test_fake_cluster_control_sockets_for_each_hop(ts, fake_cluster):
         assert p.read_text().count("Accepted publickey") > before[h], h
     # Masters are reused: a second fan-out makes no new logins.
     mid = {h: p.read_text().count("Accepted publickey") for h, p in logs.items()}
-    ts.run("-R", "true")
+    ts.run("exec", "true")
     assert {h: p.read_text().count("Accepted publickey") for h, p in logs.items()} == mid
 
 
 @pytest.mark.integration
 def test_hosts_and_gpu_status_render(ts):
-    fake_out = ts.run("--hosts").stdout
+    fake_out = ts.run("hosts").stdout
     assert "cuda01" in fake_out and "cuda02" in fake_out and "local" in fake_out
     assert "network: jump (forced)" in fake_out
     assert "unreachable" not in fake_out
     import subprocess
-    r = subprocess.run([sys.executable, "-m", "gpu_spooler.gpu_status", "--server", "fake"],
+    r = subprocess.run([sys.executable, "-m", "gpu_spooler.gpu_status", "-H", "fake"],
                        env=ts.env, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
     assert "A40" in r.stdout and "RTX A5000" in r.stdout

@@ -97,5 +97,5 @@ def ts(fake_cluster):
     home = Path(tempfile.mkdtemp(prefix="tsh.", dir="/tmp"))
     env = TS(home, fake_cluster / "hosts.toml")
     yield env
-    env.run("--stop", check=False)
+    env.run("daemon", "stop", check=False)
     shutil.rmtree(home, ignore_errors=True)

@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
 """
-GPU server status checker
+GPU server status checker (also `task gpus`)
 
 Queries every configured host in parallel (see ~/.task-spooler/hosts.toml),
 runs nvidia-smi, and displays a table showing free/busy GPUs, users, and
 running processes.
 
 Usage:
-    gpu-status [--detail] [--free-only] [--server <spec>]
-
-Options:
-    --detail      Show per-GPU rows (default: show server summary)
-    --free-only   Only show servers/GPUs with free capacity
-    --server      Hosts, groups or tags to check (comma separated)
+    gpu-status [-d/--detail] [-f/--free] [-H/--hosts SPEC]
 """
 
 import argparse
 import sys
 
 from gpu_spooler.config import Config, ConfigError, load_config
-from gpu_spooler.gpu import GpuProcess, ServerResult, query_host
+from gpu_spooler.gpu import GpuProcess, ServerResult, gpu_model, gpu_type_matches, query_host
 from gpu_spooler.transport import Transport
 
 # ---------------------------------------------------------------------------
@@ -55,10 +50,24 @@ def bar(used_mb: int, total_mb: int, width: int = 10) -> str:
     return f"{color}{bar_str}{RESET}"
 
 
+def label_mismatches(results: list[ServerResult], cfg: Config) -> list[tuple[str, str, str]]:
+    """(host, configured gpu_type, what nvidia-smi reports) where the two disagree."""
+    out = []
+    for r in sorted(results, key=lambda x: x.name):
+        host = cfg.hosts.get(r.name)
+        if not (host and host.gpu_type and r.reachable and r.gpus):
+            continue
+        if not all(gpu_type_matches(host.gpu_type, m) for m in r.models):
+            out.append((r.name, host.gpu_type, ", ".join(r.models)))
+    return out
+
+
 def print_summary_table(results: list[ServerResult], cfg: Config, free_only: bool = False) -> None:
-    """One row per server."""
+    """One row per server. GPU TYPE is what nvidia-smi reports (the configured gpu_type
+    only for hosts that reported no GPUs); * marks a configured gpu_type that disagrees."""
+    mismatched = {h for h, _, _ in label_mismatches(results, cfg)}
     header = (
-        f"{'SERVER':<14} {'GPU TYPE':<14} {'GPUs':>4}  {'FREE':>4}  "
+        f"{'SERVER':<14} {'GPU TYPE':<24} {'GPUs':>4}  {'FREE':>4}  "
         f"{'VRAM FREE':>10}  {'VRAM TOTAL':>10}  {'USERS / PROCESSES'}"
     )
     sep = "─" * len(header)
@@ -70,11 +79,13 @@ def print_summary_table(results: list[ServerResult], cfg: Config, free_only: boo
             continue
 
         host = cfg.hosts.get(r.name)
-        gpu_type = (host and host.gpu_type) or (r.gpus[0].name if r.gpus else "-")
+        gpu_type = "/".join(r.models) or (host and host.gpu_type) or "-"
+        if r.name in mismatched:
+            gpu_type += "*"
 
         if not r.reachable:
             print(
-                f"{r.name:<14} {colorize('UNREACHABLE', RED):<23}  {r.error[:60]}"
+                f"{r.name:<14} {colorize('UNREACHABLE', RED):<33}  {r.error[:60]}"
             )
             continue
 
@@ -103,17 +114,30 @@ def print_summary_table(results: list[ServerResult], cfg: Config, free_only: boo
         vram_total = f"{mb_to_gb(r.total_vram_mb):>5} GB"
 
         print(
-            f"{r.name:<14} {gpu_type:<14} {total:>4}  {free_str:>12}  "
+            f"{r.name:<14} {gpu_type:<24} {total:>4}  {free_str:>12}  "
             f"{vram_free:>10}  {vram_total:>10}  {who}"
         )
 
     print(sep)
+    print_label_warnings(results, cfg)
+
+
+def print_label_warnings(results: list[ServerResult], cfg: Config) -> None:
+    rows = label_mismatches(results, cfg)
+    if not rows:
+        return
+    src = cfg.source_label
+    print(colorize(f"* gpu_type in {src} disagrees with nvidia-smi:", YELLOW))
+    for name, configured, live in rows:
+        print(colorize(f"    {name:<14} configured '{configured}', reports '{live}'", YELLOW))
+    print(colorize("  --gpu-type and -m use what nvidia-smi reports; update or remove "
+                   "these gpu_type (and gpu_mem_gb/num_gpus) entries.", YELLOW))
 
 
 def print_detail_table(results: list[ServerResult], free_only: bool = False) -> None:
     """One row per GPU."""
     header = (
-        f"{'SERVER':<14} {'GPU':>3}  {'GPU NAME':<20}  "
+        f"{'SERVER':<14} {'GPU':>3}  {'GPU NAME':<24}  "
         f"{'MEM USED':>9}  {'MEM TOT':>7}  {'UTIL':>5}  "
         f"{'STATUS':<8}  {'USER':<12}  {'PROCESS / SCRIPT'}"
     )
@@ -139,7 +163,7 @@ def print_detail_table(results: list[ServerResult], free_only: bool = False) -> 
                 user_col = ""
                 proc_col = ""
                 print(
-                    f"{r.name:<14} {g.index:>3}  {g.name:<20}  "
+                    f"{r.name:<14} {g.index:>3}  {gpu_model(g.name):<24}  "
                     f"{mem_used_str:>9}  {mem_tot_str:>7}  {util_str:>5}  "
                     f"{status:<16}  {user_col:<12}  {proc_col}"
                 )
@@ -151,14 +175,14 @@ def print_detail_table(results: list[ServerResult], free_only: bool = False) -> 
                 for p in procs:
                     if first:
                         print(
-                            f"{r.name:<14} {g.index:>3}  {g.name:<20}  "
+                            f"{r.name:<14} {g.index:>3}  {gpu_model(g.name):<24}  "
                             f"{mem_used_str:>9}  {mem_tot_str:>7}  {util_str:>5}  "
                             f"{status:<16}  {colorize(p.user, CYAN):<20}  {p.command}"
                         )
                         first = False
                     else:
                         print(
-                            f"{'':14} {'':>3}  {'':20}  "
+                            f"{'':14} {'':>3}  {'':24}  "
                             f"{'':>9}  {'':>7}  {'':>5}  "
                             f"{'':16}  {colorize(p.user, CYAN):<20}  {p.command}"
                         )
@@ -185,36 +209,33 @@ def print_totals(results: list[ServerResult]) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    """The flags shared by `gpu-status` and `task gpus`."""
+    parser.add_argument("-d", "--detail", action="store_true",
+                        help="One row per GPU instead of one per server")
+    parser.add_argument("-f", "--free", action="store_true",
+                        help="Only servers / GPUs with free capacity")
+    parser.add_argument("-H", "--hosts", metavar="SPEC",
+                        help="Hosts, groups or tags to query (comma separated)")
+    parser.add_argument("--workers", metavar="N", type=int, default=16,
+                        help="Parallel SSH connections (default: 16)")
+    parser.add_argument("--debug", action="store_true",
+                        help="Print raw SSH output for each server")
+
+
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
         prog="gpu-status",
         description="Check GPU availability across configured GPU servers."
     )
-    parser.add_argument(
-        "--detail", "-d", action="store_true",
-        help="Show per-GPU detail rows instead of per-server summary"
-    )
-    parser.add_argument(
-        "--free-only", "-f", action="store_true",
-        help="Only show servers / GPUs with free capacity"
-    )
-    parser.add_argument(
-        "--server", "-s", metavar="SPEC",
-        help="Hosts, groups or tags to query (comma separated)"
-    )
-    parser.add_argument(
-        "--workers", "-w", type=int, default=16,
-        help="Number of parallel SSH workers (default: 16)"
-    )
-    parser.add_argument(
-        "--debug", action="store_true",
-        help="Print raw SSH output for each server (useful for diagnosing parse issues)"
-    )
-    args = parser.parse_args(argv)
+    add_arguments(parser)
+    run(parser.parse_args(argv))
 
+
+def run(args: argparse.Namespace) -> None:
     try:
         cfg = load_config()
-        targets = cfg.select(args.server)
+        targets = cfg.select(args.hosts)
     except ConfigError as e:
         sys.exit(f"gpu-status: {e}")
     transport = Transport(cfg)
@@ -234,9 +255,10 @@ def main(argv=None) -> None:
     results = list(transport.fan_out(targets, query_one, workers=args.workers).values())
 
     if args.detail:
-        print_detail_table(results, free_only=args.free_only)
+        print_detail_table(results, free_only=args.free)
+        print_label_warnings(results, cfg)
     else:
-        print_summary_table(results, cfg, free_only=args.free_only)
+        print_summary_table(results, cfg, free_only=args.free)
 
     print_totals(results)
 

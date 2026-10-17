@@ -32,38 +32,41 @@ DEFAULT_SERVERS = [
     "gryphon", "red-tomatoes", "piccolo", "the-villa", "bordeaux",
 ]
 
+# gpu_type is the name nvidia-smi reports, without "NVIDIA " (checked 2026-10-17 on every host
+# but cuda00–04, which were unreachable; gpu-status warns when a host reports something else,
+# and live values win wherever they are known).
 #               gpu_type        num_gpus gpu_mem_gb cpu_cores sys_mem_gb
 DEFAULT_SERVER_INFO = {
     "cuda-small0":  ("RTX A4000",    4, 16, 16,  192),
-    "cuda-small1":  ("RTX 4000 Ada", 3, 20, 16,  144),
+    "cuda-small1":  ("RTX 4000 Ada Generation", 3, 20, 16,  144),
     "cuda00":       ("RTX 6000",     2, 24, 32,  96),
     "cuda01":       ("RTX A5000",    2, 24, 16,  64),
     "cuda02":       ("RTX A5000",    2, 24, 16,  64),
     "cuda03":       ("RTX A5000",    2, 24, 16,  64),
     "cuda04":       ("RTX A5000",    2, 24, 16,  64),
-    "cuda05":       ("RTX A5000",    3, 24, 24,  144),
-    "cuda06":       ("RTX A5000",    3, 24, 16,  144),
+    "cuda05":       ("RTX PRO 5000 Blackwell", 2, 48, 24, 144),
+    "cuda06":       ("RTX PRO 5000 Blackwell", 2, 48, 16, 144),
     "cuda07":       ("RTX A5000",    3, 24, 24,  144),
     "cuda08":       ("RTX A5000",    3, 24, 24,  144),
-    "cuda09":       ("RTX 6000",     3, 24, 32,  96),
+    "cuda09":       ("RTX PRO 4000 Blackwell", 3, 24, 32, 96),
     "cuda10":       ("RTX A5000",    3, 24, 24,  128),
     "cuda11":       ("RTX A5000",    3, 24, 24,  112),
-    "cuda12":       ("RTX 6000",     3, 24, 32,  96),
-    "cuda13":       ("RTX 6000",     3, 24, 32,  96),
+    "cuda12":       ("RTX A5000",    3, 24, 32,  96),
+    "cuda13":       ("RTX A5000",    3, 24, 32,  96),
     "cuda14":       ("A40",          4, 48, 64,  256),
     "cuda15":       ("A40",          4, 48, 64,  256),
     "cuda16":       ("RTX A6000",    3, 48, 32,  192),
-    "cuda17":       ("RTX 6000",     3, 24, 24,  144),
+    "cuda17":       ("Quadro RTX 6000", 3, 24, 24,  144),
     "cuda18":       ("RTX A6000",    3, 48, 32,  192),
     "cuda19":       ("L4",           4, 24, 64,  256),
     "cuda20":       ("L40S",         4, 48, 64,  384),
-    "cuda21":       ("RTX 6000 Ada", 2, 48, 48,  256),
-    "cuda22":       ("RTX 6000 Ada", 2, 48, 48,  256),
+    "cuda21":       ("RTX 6000 Ada Generation", 2, 48, 48,  256),
+    "cuda22":       ("RTX 6000 Ada Generation", 2, 48, 48,  256),
     "gryphon":      ("RTX A6000",    1, 48, 64,  192),
     "red-tomatoes": ("RTX A6000",    2, 48, 32,  96),
     "piccolo":      ("RTX A5000",    2, 24, 20,  128),
     "the-villa":    ("RTX A6000",    1, 48, 64,  192),
-    "bordeaux":     ("RTX 6000",     1, 24, 20,  64),
+    "bordeaux":     ("Quadro RTX 6000", 1, 24, 20,  64),
 }
 
 INFO_FIELDS = ("gpu_type", "num_gpus", "gpu_mem_gb", "cpu_cores", "sys_mem_gb")
@@ -119,6 +122,7 @@ class Config:
     source: Optional[Path] = None
     mtime: float = 0.0
     builtin: bool = False             # True when no hosts.toml exists
+    max_gpus: Optional[int] = None    # [limits] max_gpus: GPUs our tasks may hold at once
 
     @property
     def source_label(self) -> str:
@@ -282,6 +286,7 @@ def parse_config(data: dict) -> Config:
     ssh = data.get("ssh", {})
     groups = data.get("groups", {})
     host_tables = data.get("hosts", {})
+    limits = data.get("limits", {})
     jump_tables = data.get("jumps", {})
 
     mode = net.get("mode", "auto")
@@ -379,8 +384,16 @@ def parse_config(data: dict) -> Config:
             if hosts[hop].jump:
                 raise ConfigError(f"jumps.{jname}: hop '{hop}' must not set its own jump")
 
+    unknown = set(limits) - {"max_gpus"}
+    if unknown:
+        raise ConfigError(f"limits: unknown key(s) {sorted(unknown)}")
+    max_gpus = limits.get("max_gpus")
+    if max_gpus is not None and (isinstance(max_gpus, bool) or not isinstance(max_gpus, int)
+                                 or max_gpus < 1):
+        raise ConfigError(f"limits.max_gpus must be a positive integer (got {max_gpus!r})")
+
     return Config(
-        hosts=hosts, jumps=jumps, mode=mode, probe=net.get("probe"),
+        hosts=hosts, jumps=jumps, mode=mode, probe=net.get("probe"), max_gpus=max_gpus,
         identity_file=ssh.get("identity_file"),
         control_persist=str(ssh.get("control_persist", "10m")),
         jump_control_persist=str(ssh.get("jump_control_persist", "12h")),
@@ -416,6 +429,11 @@ def config_template(user: str = "woodj4") -> str:
 mode = "auto"
 # probe = "cuda00.ecs.vuw.ac.nz"   # default: first worker that has a jump
 
+[limits]
+# At most this many GPUs in use by your tasks at once, across all hosts (queued
+# tasks wait). Leave unset for no limit.
+# max_gpus = 5
+
 [ssh]
 # identity_file = "~/.ssh/id_ed25519"
 control_persist = "10m"        # how long worker connections stay open
@@ -433,7 +451,7 @@ jump = "ecs"
 cpu_slots = 0
 # When you submit from a git repo that isn't on an ECS filesystem (e.g. on your
 # laptop), the job runs in <remote_root>/<repo name>/<same subdirectory>.
-# `task --sync` pushes your working tree there; submit warns if it's stale.
+# `task sync` pushes your working tree there; submit warns if it's stale.
 remote_root = "/vol/ecrg-solar/{user}"
 # Translate other local working directories to their path on ECS, e.g. when
 # submitting from a laptop checkout that mirrors an ECS directory:
@@ -447,6 +465,7 @@ hosts = [
 # kind = "local"
 # cpu_slots = 2
 
-# Per-host details (used for -m/--min-mem and display). Set enabled = false
-# to stop dispatching to a host.
+# Per-host details, used for display and as a fallback for -m/--min-mem when a
+# host has not been queried yet (what nvidia-smi reports wins; gpu-status warns
+# when they disagree). Set enabled = false to stop dispatching to a host.
 {chr(10).join(info_blocks)}'''

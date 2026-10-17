@@ -58,5 +58,5 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
     echo "  Then restart your shell or run: source ~/.zshrc"
 else
-    echo "  Done! Run 'task --help', 'gpu-status --help' or 'tui' to get started."
+    echo "  Done! Run 'task -h', 'task gpus' or 'task tui' to get started."
 fi

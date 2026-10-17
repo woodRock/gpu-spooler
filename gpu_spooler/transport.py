@@ -48,7 +48,7 @@ def _cm_dir() -> Path:
 def auth_hint(stderr: str) -> Optional[str]:
     low = stderr.lower()
     if any(h in low for h in AUTH_HINTS):
-        return "authentication failed - run `task --connect` to log in interactively"
+        return "authentication failed - run `task connect` to log in interactively"
     return None
 
 

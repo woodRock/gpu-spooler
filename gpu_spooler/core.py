@@ -102,6 +102,7 @@ _MIGRATIONS = [
     ("remote_dir",  "TEXT"),
     ("last_seen",   "REAL"),
     ("repo_root",   "TEXT"),   # local git repo the task was submitted from
+    ("gpu_type",    "TEXT"),   # --gpu-type: nvidia-smi model name(s), comma separated
 ]
 
 # Fields reset when a task goes back to the queue for another attempt.
@@ -242,13 +243,74 @@ def get_task(task_id: int, con: Optional[sqlite3.Connection] = None) -> sqlite3.
     return r
 
 
+# Exit codes for `task wait` (see wait_exit_code).
+EXIT_KILLED  = 130
+EXIT_LOST    = 75
+EXIT_TIMEOUT = 124
+WAIT_POLL    = 2.0
+
+
+def wait_exit_code(r) -> int:
+    """How a finished task maps to a process exit code."""
+    status = r["status"]
+    if status == "done":
+        return 0
+    if status == "failed":
+        return r["exit_code"] or 1
+    if status in ("killed", "cancelled"):
+        return EXIT_KILLED
+    return EXIT_LOST
+
+
+def describe_end(r) -> str:
+    """e.g. 'task 12: done (exit 0, 3m 41s)'."""
+    bits = []
+    if r["status"] in ("done", "failed") and r["exit_code"] is not None:
+        bits.append(f"exit {r['exit_code']}")
+    if r["started_at"]:
+        bits.append(fmt_duration(runtime(r)))
+    return f"task {r['id']}: {r['status']}" + (f" ({', '.join(bits)})" if bits else "")
+
+
+def wait_for(task_ids: list[int], timeout: Optional[float] = None,
+             poll: float = WAIT_POLL) -> tuple[dict, list[int]]:
+    """
+    Block until every task is in a final state, reading only the database
+    (the daemon keeps it current). Returns ({id: final row}, [ids still
+    unfinished when the timeout hit]). Raises TaskError for an unknown id.
+    """
+    con = db_open()
+    for tid in task_ids:
+        get_task(tid, con)
+    deadline = None if timeout is None else time.monotonic() + timeout
+    done: dict = {}
+    while True:
+        for tid in task_ids:
+            if tid not in done:
+                r = get_task(tid, con)
+                if r["status"] in FINISHED:
+                    done[tid] = r
+        pending = [t for t in task_ids if t not in done]
+        if not pending:
+            return done, []
+        if deadline is not None:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return done, pending
+            time.sleep(min(poll, left))
+        else:
+            time.sleep(poll)
+
+
 def task_details(r) -> list[tuple[str, str]]:
-    """(label, value) rows describing a task, for `task -i` and the TUI."""
+    """(label, value) rows describing a task, for `task info` and the TUI."""
     out = [("Status", r["status"])]
     if r["name"]:
         out.append(("Label", r["name"]))
     out.append(("Command", r["command"]))
     out.append(("GPUs req", str(r["num_gpus"] or "none (CPU job)")))
+    if r["gpu_type"]:
+        out.append(("GPU type", r["gpu_type"]))
     if r["min_mem"]:
         out.append(("Min VRAM", f"{r['min_mem']} GB"))
     if r["host_spec"]:
@@ -265,8 +327,11 @@ def task_details(r) -> list[tuple[str, str]]:
             host = get_cfg().hosts.get(server)
         except ConfigError:
             host = None
-        if host and (host.gpu_type or host.gpu_mem_gb):
-            server += f"  ({host.gpu_type or ''}  {host.gpu_mem_gb or '?'} GB/GPU)"
+        models = snapshot_models(server, r["gpu_indices"])
+        if models:
+            server += f"  ({', '.join(models)})"
+        elif host and (host.gpu_type or host.gpu_mem_gb):
+            server += f"  ({host.gpu_type or ''}  {host.gpu_mem_gb or '?'} GB/GPU, configured)"
         out.append(("Server", server))
     if r["gpu_indices"]:
         out.append(("GPU indices", r["gpu_indices"]))
@@ -327,11 +392,12 @@ class Submitted:
     host_spec: Optional[str]
     candidates: list[Host]
     warnings: list[str] = field(default_factory=list)
+    gpu_type: Optional[str] = None
 
 
 def command_from_argv(argv: list[str]) -> str:
     """
-    A single argument is taken as shell code (task -G 1 'a && b'); several
+    A single argument is taken as shell code (task submit 'a && b'); several
     arguments are quoted so they reach the command unchanged.
     """
     return argv[0] if len(argv) == 1 else shlex.join(argv)
@@ -359,17 +425,26 @@ def logical_cwd() -> str:
 
 def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = None,
            host_spec: Optional[str] = None, working_dir: Optional[str] = None,
-           start: bool = True, check_repo: bool = True) -> Submitted:
+           start: bool = True, check_repo: bool = True,
+           gpu_type: Optional[str] = None) -> Submitted:
     """
     Queue a task (and start the daemon unless start=False). When submitted
     from a git repo, the remote copies are checked and any that are missing or
     stale produce a warning (check_repo=False skips the ssh round trip).
+    gpu_type restricts the task to GPUs whose nvidia-smi name is one of these
+    models (comma separated; see gpu.gpu_type_matches).
     """
     if num_gpus < 0:
         raise TaskError("-G must be 0 (CPU job) or more")
     if not command.strip():
         raise TaskError("empty command")
+    gpu_type = ",".join(t.strip() for t in (gpu_type or "").split(",") if t.strip()) or None
+    if gpu_type and num_gpus == 0:
+        raise TaskError("--gpu-type needs a GPU job (-G 1 or more)")
     cfg = get_cfg()
+    if cfg.max_gpus is not None and num_gpus > cfg.max_gpus:
+        raise TaskError(f"-G {num_gpus} is more than [limits] max_gpus = {cfg.max_gpus}; "
+                        "the task could never start")
     try:
         candidates = cfg.select(host_spec)
     except ConfigError as e:
@@ -382,17 +457,21 @@ def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = 
     con = db_open()
     cur = con.execute(
         "INSERT INTO tasks (command, num_gpus, min_mem, submitted_at, working_dir, name, "
-        "host_spec, repo_root) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "host_spec, repo_root, gpu_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (command, num_gpus, min_mem or 0, time.time(), working_dir, name, host_spec or None,
-         local_repo.root if local_repo else None),
+         local_repo.root if local_repo else None, gpu_type),
     )
     con.commit()
     sub = Submitted(cur.lastrowid, command, working_dir, num_gpus, min_mem or 0, name,
-                    host_spec or None, candidates)
+                    host_spec or None, candidates, gpu_type=gpu_type)
+    if gpu_type:
+        problem = gpu_type_problem(gpu_type, candidates)
+        if problem:
+            sub.warnings.append(problem)
 
     if num_gpus == 0 and not any(h.cpu_slots > 0 for h in candidates):
         sub.warnings.append("no selected host has cpu_slots > 0; this task will stay "
-                            "queued (see `task --hosts`).")
+                            "queued (see `task hosts`).")
     copies = repo.targets(cfg, candidates, local_repo, working_dir) if local_repo else []
     covered = {name for t in copies for name in t.members}
     unmapped = [h.name for h in candidates if not h.is_local and h.name not in covered
@@ -462,7 +541,7 @@ def resubmit(task_id: int) -> Submitted:
     """Queue a copy of an existing task (same command, resources and directory)."""
     r = get_task(task_id)
     return submit(r["command"], r["num_gpus"], r["min_mem"], r["name"], r["host_spec"],
-                  r["working_dir"])
+                  r["working_dir"], gpu_type=r["gpu_type"])
 
 # ── Killing ───────────────────────────────────────────────────────────────────
 
@@ -499,7 +578,7 @@ def _kill_remote(row) -> tuple[bool, str]:
         return True, f"Process on {host.name} was already gone."
     reason = (err.strip().splitlines() or [f"exit {rc}"])[-1]
     return False, (f"could not reach {host.name}: {reason}. The process may still be "
-                   f"running; check with `task --ssh {row['server']}`"
+                   f"running; check with `task ssh {row['server']}`"
                    + (f" and `kill -- -{row['remote_pid']}`." if row["remote_pid"] else "."))
 
 
@@ -617,6 +696,33 @@ def read_gpu_snapshot() -> Optional[dict]:
         return json.loads(SNAPSHOT_PATH.read_text())
     except (OSError, ValueError):
         return None
+
+
+def snapshot_models(host_name: str, gpu_indices: Optional[str] = None) -> list[str]:
+    """GPU models a host reported in the latest snapshot (only these indices, if given)."""
+    from gpu_spooler.gpu import gpu_model
+    h = ((read_gpu_snapshot() or {}).get("hosts") or {}).get(host_name) or {}
+    wanted = {int(i) for i in (gpu_indices or "").split(",") if i.strip().isdigit()}
+    names = [g.get("name", "") for g in h.get("gpus", [])
+             if not wanted or g.get("index") in wanted]
+    return list(dict.fromkeys(gpu_model(n) for n in names if n))
+
+
+def gpu_type_problem(gpu_type: str, candidates: list[Host]) -> Optional[str]:
+    """
+    A warning if no candidate host reported a GPU of this type in the latest
+    snapshot (None if one did, or if there is no snapshot to judge by).
+    """
+    from gpu_spooler.gpu import gpu_type_matches
+    hosts = (read_gpu_snapshot() or {}).get("hosts") or {}
+    seen = {n: snapshot_models(n) for n in (h.name for h in candidates) if n in hosts}
+    if not any(seen.values()):
+        return None
+    if any(gpu_type_matches(gpu_type, m) for models in seen.values() for m in models):
+        return None
+    known = sorted({m for models in seen.values() for m in models})
+    return (f"no selected host reported a GPU of type '{gpu_type}' in the last GPU poll "
+            f"(seen: {', '.join(known)}); the task will stay queued unless one does.")
 
 
 def request_gpu_snapshot() -> None:

@@ -151,7 +151,7 @@ def test_cli_init_config_never_overwrites(tmp_path):
     target = tmp_path / "hosts.toml"
     env = dict(os.environ, HOME=str(tmp_path), TASK_SPOOLER_CONFIG=str(target),
                PYTHONPATH=str(Path(__file__).resolve().parent.parent))
-    run = lambda: subprocess.run([sys.executable, "-m", "gpu_spooler.task", "--init-config"],
+    run = lambda: subprocess.run([sys.executable, "-m", "gpu_spooler.task", "config", "init"],
                                  env=env, capture_output=True, text=True)
     r = run()
     assert r.returncode == 0 and target.exists()
@@ -166,7 +166,7 @@ def test_cli_list_with_builtin_config(tmp_path):
     from pathlib import Path
     env = dict(os.environ, HOME=str(tmp_path), TASK_SPOOLER_CONFIG=str(tmp_path / "none.toml"),
                PYTHONPATH=str(Path(__file__).resolve().parent.parent))
-    r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", "-l"], env=env,
+    r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", "list"], env=env,
                        capture_output=True, text=True)
     assert r.returncode == 0 and "No tasks." in r.stdout
 
@@ -190,3 +190,21 @@ kind = "local"
     assert cfg.remote_dir(h, str(repo), None) == str(repo)                  # not a git repo
     assert cfg.remote_dir(plain, str(repo), str(repo)) == str(repo)         # no remote_root
     assert cfg.remote_dir(loc, str(repo), str(repo)) == str(repo)           # local host
+
+
+def test_limits_max_gpus():
+    from gpu_spooler.config import ConfigError, parse_config
+    assert parse_config({}).max_gpus is None
+    assert parse_config({"limits": {"max_gpus": 5}}).max_gpus == 5
+    for bad in (0, -1, "5", True, 2.5):
+        with pytest.raises(ConfigError, match="max_gpus"):
+            parse_config({"limits": {"max_gpus": bad}})
+    with pytest.raises(ConfigError, match="unknown"):
+        parse_config({"limits": {"max_gpu": 5}})
+
+
+def test_builtin_catalogue_uses_reported_names():
+    from gpu_spooler.config import DEFAULT_SERVER_INFO
+    assert DEFAULT_SERVER_INFO["cuda05"][:3] == ("RTX PRO 5000 Blackwell", 2, 48)
+    assert DEFAULT_SERVER_INFO["cuda09"][0] == "RTX PRO 4000 Blackwell"
+    assert DEFAULT_SERVER_INFO["cuda12"][0] == DEFAULT_SERVER_INFO["cuda13"][0] == "RTX A5000"

@@ -109,7 +109,7 @@ def test_assign_bin_packs_and_filters():
     assert got == [
         (1, "small", [1]),       # fewest GPUs first, busy GPU 0 skipped
         (2, "big", [0]),
-        (3, "big", [1]),         # min_mem uses configured gpu_mem_gb
+        (3, "big", [1]),         # min_mem: detected 48.3 GB
         (4, "loc", []),          # CPU slot
     ]                            # 5: no CPU slot left; 6: only GPU 2 left; 7: loc has no GPUs
 
@@ -145,3 +145,46 @@ def test_db_migration_from_old_schema(tmp_path, monkeypatch):
     assert r["ssh_pid"] == 123 and r["job_key"] is None and r["log_offset"] == 0
     assert {"retry_count", "min_mem", "remote_pid", "host_spec", "remote_dir",
             "last_seen"} <= set(r)
+
+
+def _named(names, mib=24564):
+    return [GpuInfo(i, n, 1, 0, mib, 0) for i, n in enumerate(names)]
+
+
+def test_assign_filters_by_the_live_gpu_name():
+    from gpu_spooler.daemon import assign_tasks, host_states
+    cfg = _cfg()
+    results = {
+        "small": ServerResult("small", True, gpus=_named(["NVIDIA RTX A5000"] * 2)),
+        "big": ServerResult("big", True, gpus=_named(["NVIDIA RTX PRO 5000 Blackwell"] * 4)),
+    }
+    states = host_states(cfg, results, [])
+    rows = [dict(_row(1, 1), gpu_type="RTX PRO 5000 Blackwell"),
+            *(dict(_row(i, 1), gpu_type="RTX A5000") for i in (2, 3, 4)),
+            dict(_row(5, 1), gpu_type="L4")]
+    assert assign_tasks(rows, states, cfg) == [
+        (1, "big", [0]), (2, "small", [0]), (3, "small", [1])]   # 4: no A5000 left; 5: no L4
+
+
+def test_assign_respects_the_gpu_budget():
+    from gpu_spooler.daemon import assign_tasks, gpu_budget, host_states
+    cfg = _cfg()
+    results = {"small": ServerResult("small", True, gpus=_gpus(2)),
+               "big": ServerResult("big", True, gpus=_gpus(4, mib=46068))}
+    states = host_states(cfg, results, [])
+    assert assign_tasks([_row(i, 1) for i in range(1, 6)], states, cfg, budget=3) == [
+        (1, "small", [0]), (2, "small", [1]), (3, "big", [0])]
+    states = host_states(cfg, results, [])
+    assert assign_tasks([_row(1, 2), _row(2, 2), _row(3, 1)], states, cfg, budget=3) == [
+        (1, "small", [0, 1]), (3, "big", [0])]               # 2 would exceed the budget
+    assert gpu_budget(cfg, [{"num_gpus": 2}]) is None         # no [limits]
+    cfg.max_gpus = 5
+    assert gpu_budget(cfg, [{"num_gpus": 2}, {"num_gpus": 1}, {"num_gpus": 0}]) == 2
+    assert gpu_budget(cfg, [{"num_gpus": 7}]) == 0
+
+
+def test_detected_memory_wins_over_a_wrong_label():
+    from gpu_spooler.daemon import assign_tasks, host_states
+    cfg = _cfg()                                          # big: gpu_mem_gb = 48 configured
+    results = {"big": ServerResult("big", True, gpus=_gpus(2, mib=24564))}   # reports 24 GB
+    assert assign_tasks([_row(1, 1, mem=40)], host_states(cfg, results, []), cfg) == []

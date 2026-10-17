@@ -3,7 +3,7 @@ Keeping a remote copy of a local git repo, for submitting from a machine that
 doesn't share a filesystem with the servers (e.g. a laptop).
 
 The remote copy lives at <remote_root>/<repo name> on each host group (ECS
-servers share NFS, so one copy serves the whole group). `task --sync` pushes a
+servers share NFS, so one copy serves the whole group). `task sync` pushes a
 snapshot of the local working tree - HEAD plus uncommitted changes to tracked
 files, via `git stash create`, which doesn't touch the local repo - over the
 spooler's own ssh route, then checks it out (detached) on the remote side.
@@ -175,15 +175,15 @@ def staleness(repo: LocalRepo, target: Target, st: RemoteState) -> Optional[str]
     if st.state == "nogit":
         return f"git is not installed on {target.host.name}"
     if st.state == "missing":
-        return f"repo '{repo.name}' doesn't exist on {where}; run `task --sync`"
+        return f"repo '{repo.name}' doesn't exist on {where}; run `task sync`"
     if st.state == "notgit":
         return f"{where} exists but is not a git repo"
     if st.dirty:
         return (f"{where} has {st.dirty} uncommitted change(s) on the server; "
-                "`task --sync` will refuse to overwrite conflicting files")
+                "`task sync` will refuse to overwrite conflicting files")
     if st.tree != repo.tree():
         return (f"{where} is at {st.head[:7] or 'no commit'}, but you're at "
-                f"{repo.describe()}; run `task --sync`")
+                f"{repo.describe()}; run `task sync`")
     return None
 
 # ── Syncing ───────────────────────────────────────────────────────────────────

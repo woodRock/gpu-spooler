@@ -8,13 +8,13 @@ import os
 import sys
 import time
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
 from gpu_spooler import core, jobs
 from gpu_spooler.config import Config, ConfigError, Host, config_path, load_config
-from gpu_spooler.gpu import ServerResult, query_hosts, write_snapshot
+from gpu_spooler.gpu import ServerResult, gpu_type_matches, query_hosts, write_snapshot
 from gpu_spooler.transport import auth_hint
 
 POLL_INTERVAL   = 30   # seconds between GPU polls / dispatch
@@ -41,10 +41,26 @@ class HostState:
     free: dict[int, bool]          # gpu index → free
     cpu_free: int                  # unused CPU slots
     detected_mem_gb: float = 0.0   # smallest detected GPU memory (decimal GB)
+    names: dict[int, str] = field(default_factory=dict)   # gpu index → nvidia-smi name
 
     @property
     def mem_gb(self) -> float:
-        return self.host.gpu_mem_gb if self.host.gpu_mem_gb is not None else self.detected_mem_gb
+        """Detected memory when the host reported GPUs; the configured value otherwise."""
+        if self.detected_mem_gb or self.host.gpu_mem_gb is None:
+            return self.detected_mem_gb
+        return self.host.gpu_mem_gb
+
+
+def _field(row, key: str):
+    """row[key], or None for rows (or test dicts) without that column."""
+    return row[key] if key in row.keys() else None
+
+
+def gpu_budget(cfg: Config, running_rows) -> Optional[int]:
+    """GPUs our tasks may still take under [limits] max_gpus (None: no limit)."""
+    if cfg.max_gpus is None:
+        return None
+    return max(0, cfg.max_gpus - sum(r["num_gpus"] or 0 for r in running_rows))
 
 
 def host_states(cfg: Config, results: dict[str, ServerResult], running_rows) -> dict[str, HostState]:
@@ -58,6 +74,7 @@ def host_states(cfg: Config, results: dict[str, ServerResult], running_rows) -> 
             free={g.index: g.is_free for g in r.gpus},
             cpu_free=cfg.hosts[name].cpu_slots,
             detected_mem_gb=min((g.mem_total_gb for g in r.gpus), default=0.0),
+            names={g.index: g.name for g in r.gpus},
         )
     for row in running_rows:
         st = states.get(row["server"])
@@ -71,10 +88,13 @@ def host_states(cfg: Config, results: dict[str, ServerResult], running_rows) -> 
     return states
 
 
-def assign_tasks(task_rows, states: dict[str, HostState], cfg: Config) -> list[tuple]:
+def assign_tasks(task_rows, states: dict[str, HostState], cfg: Config,
+                 budget: Optional[int] = None) -> list[tuple]:
     """
     Greedily assign tasks (in queue order) to hosts. GPU tasks bin-pack onto
-    hosts with the fewest GPUs first; -G 0 tasks use free CPU slots.
+    hosts with the fewest GPUs first, using only GPUs whose nvidia-smi name
+    matches the task's --gpu-type; -G 0 tasks use free CPU slots. budget caps the
+    GPUs handed out in this round ([limits] max_gpus minus those in use).
     Mutates states to reserve what is assigned.
     Returns list of (task_id, host_name, [gpu_indices]).
     """
@@ -82,7 +102,10 @@ def assign_tasks(task_rows, states: dict[str, HostState], cfg: Config) -> list[t
     assignments = []
     for row in task_rows:
         n = row["num_gpus"]
+        if budget is not None and n > budget:
+            continue
         min_mem = row["min_mem"] or 0
+        gpu_type = _field(row, "gpu_type")
         try:
             allowed = {h.name for h in cfg.select(row["host_spec"])}
         except ConfigError:
@@ -98,12 +121,15 @@ def assign_tasks(task_rows, states: dict[str, HostState], cfg: Config) -> list[t
                 continue
             if st.mem_gb < min_mem:
                 continue
-            free = [i for i, ok in sorted(st.free.items()) if ok]
+            free = [i for i, ok in sorted(st.free.items())
+                    if ok and gpu_type_matches(gpu_type, st.names.get(i, ""))]
             if len(free) >= n:
                 chosen = free[:n]
                 for idx in chosen:
                     st.free[idx] = False   # reserve
                 assignments.append((row["id"], st.host.name, chosen))
+                if budget is not None:
+                    budget -= n
                 break
     return assignments
 
@@ -359,17 +385,22 @@ class Daemon:
         if not states:
             hints = {auth_hint(r.error) for r in results.values()} - {None}
             self._log("No reachable hosts (check SSH keys/agent"
-                      + ("; run `task --connect`" if hints else "") + ").")
+                      + ("; run `task connect`" if hints else "") + ").")
             return
 
         avail = ", ".join(
             f"{n}:{sum(s.free.values())}" + (f"+{s.cpu_free}cpu" if s.cpu_free > 0 else "")
             for n, s in sorted(states.items()))
-        self._log(f"Free: {avail}")
+        budget = gpu_budget(self.cfg, running)
+        cap = "" if budget is None else (
+            f"  (max_gpus {self.cfg.max_gpus}: {self.cfg.max_gpus - budget} in use)")
+        self._log(f"Free: {avail}{cap}")
 
-        assignments = assign_tasks(rows, states, self.cfg)
+        assignments = assign_tasks(rows, states, self.cfg, budget)
         if not assignments:
-            self._log("No free slots available; tasks remain queued.")
+            self._log("No free slots available"
+                      + (" within max_gpus" if budget == 0 else "")
+                      + "; tasks remain queued.")
             return
 
         for task_id, host_name, gpu_indices in assignments:

@@ -2,44 +2,42 @@
 """
 task - GPU task spooler for SSH-reachable GPU servers (VUW ECS by default)
 
-The background daemon auto-starts on first job submission and dispatches
-queued tasks to GPU servers as GPUs become free. Jobs run detached on the
-server, so they survive the SSH connection (or this machine) going away.
+The background daemon auto-starts on first submission and dispatches queued
+tasks to GPU servers as GPUs become free. Jobs run detached on the server, so
+they survive the SSH connection (or this machine) going away.
 
-Submission:
-  task -G 1 python3 train.py             queue a job needing 1 GPU
-  task -G 2 -n "experiment A" ./run.sh   queue with a label
-  task -G 1 -H cuda14,cuda15 ./run.sh    only run on these hosts / groups / tags
-  task -G 0 ./preprocess.sh              CPU-only job (hosts with cpu_slots)
+Tasks:
+  task submit [-g N] [OPTIONS] -- CMD     queue CMD (1 GPU unless -g says otherwise)
+  task list [-a]                          list tasks (the 200 most recent; -a: all)
+  task info ID                            details of a task
+  task logs [-f] ID                       print a task's output (-f: follow it)
+  task wait ID... [--timeout S]           wait; the exit code says how they ended
+  task kill ID... | --all                 cancel queued / kill running tasks
+  task resubmit ID                        queue a copy of a task
+  task clear [--reset]                    remove finished tasks (--reset: all, IDs from 1)
 
-Inspection:
-  task -l  / --list                      list tasks (most recent 200)
-  task -L  / --all                       list all tasks (no limit)
-  task -i 3 / --info 3                   detailed info for task 3
-  task -o 3 / --output 3                 print saved output of task 3
-  task -f 3 / --follow 3                 stream live output of task 3
+Repos (submitting from a laptop):
+  task sync [--check]                     push this repo to the servers (--check: is it current?)
+  task fetch [OPTIONS] PATH...            copy outputs back (PATH or REMOTE:LOCAL)
 
-Management:
-  task -k 3 / --kill 3                   kill / cancel task 3
-  task -K   / --kill-all                 kill all running & queued tasks, stop daemon
-  task -c   / --clear                    remove finished tasks from the list
-  task -w 3 / --wait 3                   block until task 3 finishes
-  task -r 3 / --resubmit 3               queue a copy of task 3
+Cluster:
+  task gpus [-d] [-f]                     GPU availability (same as gpu-status)
+  task hosts                              configured hosts and network mode
+  task exec [-H SPEC] -- CMD              run CMD on every (selected) server
+  task ssh HOST                           interactive shell on a host
+  task connect                            log in to jump hosts once (password/OTP)
+  task daemon start|stop|status           the background daemon
+  task config init|path                   the hosts.toml file
+  task tui                                interactive view of the queue, logs and GPUs
 
-Git repos (when submitting from a machine without the servers' filesystem):
-  task --sync                            push this repo's working tree to the servers
-  task --repo-status                     is the servers' copy up to date?
+The same short flag means the same thing everywhere: -H hosts/groups/tags,
+-C directory (as with git -C), -g GPUs, -t GPU model, -n name, -q quiet,
+-f follow. `task COMMAND -h` shows a command's options.
 
-For an interactive view of the queue, logs and GPUs, run `tui`.
-
-Hosts / daemon:
-  task --gpu-status                      show GPU availability across all servers
-  task --hosts                           show configured hosts and network mode
-  task --connect                         log in to jump hosts once (password/OTP)
-  task --ssh cuda14                      interactive shell on a host
-  task --init-config                     write ~/.task-spooler/hosts.toml template
-  task --stop                            stop the background daemon
-  task --daemon                          (re)start the daemon explicitly
+Examples:
+  task submit -- python3 train.py --epochs 50
+  task submit -g 2 -n "ablation" -t "RTX A5000" -- ./run.sh
+  id=$(task submit -q -- python3 eval.py) && task wait "$id" && task fetch results
 """
 
 import argparse
@@ -91,23 +89,36 @@ def _print_submitted(sub: core.Submitted) -> None:
     print(f"  Requires: {need}   Working dir: {sub.working_dir}")
     if sub.host_spec:
         print(f"  Hosts: {', '.join(h.name for h in sub.candidates)}")
+    if sub.gpu_type:
+        print(f"  GPU type: {sub.gpu_type}")
     for w in sub.warnings:
         print(_col(f"  Warning: {w}", YELLOW))
     daemon_status = (
         _col("running", GREEN) if core.daemon_is_running()
-        else _col("NOT running — start with: task --daemon", RED)
+        else _col("NOT running — start with: task daemon start", RED)
     )
     print(f"  Daemon: {daemon_status}")
 
 
+def _report_submitted(sub: core.Submitted, quiet: bool) -> None:
+    if not quiet:
+        _print_submitted(sub)
+        return
+    print(sub.task_id)
+    for w in sub.warnings:
+        print(f"task: warning: {w}", file=sys.stderr)
+
+
 def cmd_submit(args) -> None:
-    _print_submitted(core.submit(
+    if not args.command:
+        sys.exit("task submit: no command given, e.g.: task submit -- python3 train.py")
+    _report_submitted(core.submit(
         core.command_from_argv(args.command), args.gpus, args.min_mem, args.name,
-        args.host, args.dir))
+        args.hosts, args.dir, gpu_type=args.gpu_type), args.quiet)
 
 
 def cmd_resubmit(args) -> None:
-    _print_submitted(core.resubmit(args.resubmit))
+    _report_submitted(core.resubmit(args.id), args.quiet)
 
 
 def cmd_list(args) -> None:
@@ -148,10 +159,14 @@ def cmd_list(args) -> None:
     )
     total = counts["total"]
     truncated = f"  {_col(f'(showing {shown} of {total})', DIM)}" if shown < total else ""
+    cap = get_cfg().max_gpus
+    in_use = sum(r["num_gpus"] or 0 for r in con.execute(
+        "SELECT num_gpus FROM tasks WHERE status='running'"))
     print(
         f"\n{total} task(s){truncated}  "
         f"{_col(str(counts['running']), GREEN)} running  "
         f"{_col(str(counts['queued']), YELLOW)} queued  "
+        + (f"GPUs {in_use}/{cap} (max_gpus)  " if cap is not None else "") +
         f"daemon: {daemon_str}  "
         f"network: {get_transport().describe_mode(probe=False)}\n"
     )
@@ -167,49 +182,32 @@ def cmd_info(args) -> None:
     print()
 
 
-def cmd_output(args) -> None:
+def cmd_logs(args) -> None:
     con = core.db_open()
     r = con.execute("SELECT log_file, status FROM tasks WHERE id=?", (args.id,)).fetchone()
     if not r:
-        print(f"Task {args.id} not found.")
-        sys.exit(1)
-    if not r["log_file"] or not Path(r["log_file"]).exists():
-        print(f"No output log for task {args.id} yet.")
-        sys.exit(1)
-    print(Path(r["log_file"]).read_text())
-
-
-def cmd_follow(args) -> None:
-    con = core.db_open()
-    r = con.execute("SELECT log_file, status FROM tasks WHERE id=?", (args.id,)).fetchone()
-    if not r:
-        print(f"Task {args.id} not found.")
-        sys.exit(1)
-
+        sys.exit(f"task: task {args.id} not found")
     log = r["log_file"]
-    status = r["status"]
+    if not args.follow:
+        if not log or not Path(log).exists():
+            sys.exit(f"task: no output for task {args.id} yet ({r['status']})")
+        print(Path(log).read_text(), end="")
+        return
 
-    # Wait for the log file to appear if task is queued/starting
+    # Wait for the log file to appear if the task is queued or starting
     if not log or not Path(log).exists():
-        if status in ("queued", "running"):
-            print(f"Task {args.id} has not started yet. Waiting...", flush=True)
-            for _ in range(60):   # wait up to 60 s
-                time.sleep(1)
-                r = con.execute(
-                    "SELECT log_file, status FROM tasks WHERE id=?", (args.id,)
-                ).fetchone()
-                log = r["log_file"]
-                if log and Path(log).exists():
-                    break
-            else:
-                print("Timed out waiting for task to start.")
-                sys.exit(1)
+        if r["status"] not in ("queued", "running"):
+            sys.exit(f"task: no output for task {args.id} ({r['status']})")
+        print(f"Task {args.id} has not started yet. Waiting...", file=sys.stderr, flush=True)
+        for _ in range(60):   # wait up to 60 s
+            time.sleep(1)
+            log = con.execute("SELECT log_file FROM tasks WHERE id=?",
+                              (args.id,)).fetchone()["log_file"]
+            if log and Path(log).exists():
+                break
         else:
-            print(f"No output log for task {args.id}.")
-            sys.exit(1)
-
-    # tail -f equivalent
-    print(f"Following task {args.id} (Ctrl+C to stop)...\n")
+            sys.exit("task: timed out waiting for the task to start")
+    print(f"Following task {args.id} (Ctrl+C to stop)...\n", file=sys.stderr)
     try:
         subprocess.run(["tail", "-n", "+1", "-f", log])
     except KeyboardInterrupt:
@@ -217,34 +215,43 @@ def cmd_follow(args) -> None:
 
 
 def cmd_kill(args) -> None:
-    res = core.kill(args.id)
-    if res.action == "killed":
-        print(res.message if res.confirmed else _col(f"Warning: {res.message}", YELLOW))
-        print(f"Task {args.id} marked as killed.")
-    else:
-        print(res.message)
-
-
-def cmd_kill_all(args) -> None:
-    res = core.kill_all()
-    for k in res.unconfirmed:
-        print(_col(f"Task {k.task_id}: Warning: {k.message}", YELLOW))
-    print(f"Cancelled {res.cancelled} queued task(s), killed {res.killed} running task(s).")
-    if core.daemon_is_running():
-        cmd_stop(args)
-    core.reset_history()
-    print("Task history cleared. Next task will be ID 1.")
+    if args.all == bool(args.ids):
+        sys.exit("task kill: give task IDs or --all (not both)")
+    if args.all:
+        res = core.kill_all()
+        for k in res.unconfirmed:
+            print(_col(f"Task {k.task_id}: Warning: {k.message}", YELLOW))
+        print(f"Cancelled {res.cancelled} queued task(s), killed {res.killed} running task(s).")
+        return
+    for tid in dict.fromkeys(args.ids):
+        res = core.kill(tid)
+        if res.action == "killed":
+            print(res.message if res.confirmed else _col(f"Warning: {res.message}", YELLOW))
+            print(f"Task {tid} marked as killed.")
+        else:
+            print(res.message)
 
 
 def cmd_clear(args) -> None:
+    if args.reset:
+        counts = core.task_counts()
+        if counts["running"] or counts["queued"]:
+            sys.exit(f"task clear --reset: {counts['running']} running and {counts['queued']} "
+                     "queued task(s); kill them first (task kill --all)")
     res = core.clear_finished()
     print(f"Removed {res.tasks} finished task(s) and {res.log_files} log file(s)."
           + (_col(f"  Could not clean job directories on: {', '.join(res.failed_hosts)}", DIM)
              if res.failed_hosts else ""))
+    if args.reset:
+        core.reset_history()
+        print("Task history cleared. The next task will be ID 1.")
 
 
 def cmd_sync(args) -> None:
-    info = core.repo_for(args.dir, args.host)
+    if args.check:
+        cmd_repo_status(args)
+        return
+    info = core.repo_for(args.dir, args.hosts)
     print(f"Syncing {BOLD}{info.repo.name}{RESET} ({info.repo.describe()}) to "
           f"{len(info.copies)} location(s)  {DIM}network: "
           f"{get_transport().describe_mode()}{RESET}")
@@ -261,8 +268,63 @@ def cmd_sync(args) -> None:
         sys.exit(1)
 
 
+def cmd_fetch(args) -> None:
+    from gpu_spooler import fetch
+    if args.after:
+        done, _ = core.wait_for(list(dict.fromkeys(args.after)))
+        bad = [core.describe_end(r) for r in done.values() if r["status"] != "done"]
+        if bad:
+            sys.exit("task: not fetching, a task did not finish cleanly: " + "; ".join(bad))
+    cfg, transport = get_cfg(), get_transport()
+    cwd = os.path.abspath(os.path.expanduser(args.dir)) if args.dir else core.logical_cwd()
+    if core.on_ecs_filesystem(cwd) and not any(fetch._is_explicit(s) for s in args.paths):
+        sys.exit("task: this directory is on the servers' filesystem already; nothing to fetch")
+    try:
+        hosts = cfg.select(args.hosts)
+        group, items = fetch.resolve(cfg, hosts, args.paths, cwd)
+        busy = core.running_in([i.remote for i in items])
+        if busy and not args.after:
+            print(_col(f"Warning: {busy} running task(s) work under these paths; files may be "
+                       "incomplete (use --after ID to wait for them).", YELLOW))
+        res = fetch.fetch(cfg, transport, hosts, args.paths, cwd,
+                          force=args.force, dry_run=args.dry_run)
+    except fetch.FetchError as e:
+        sys.exit(f"task: {e}")
+    except ConfigError as e:
+        sys.exit(f"task: -H {args.hosts}: {e}")
+    verb = "Would fetch" if args.dry_run else "Fetched"
+    kept_any = False
+    for plan in res.plans:
+        it = plan.item
+        where = f"{res.host.name}:{it.remote} → {os.path.relpath(it.local, cwd)}"
+        if plan.kind == "missing":
+            print(f"  {_col('MISSING', RED)}  {where}")
+            continue
+        n = len(plan.to_fetch)
+        parts = [f"{len(plan.new)} new", f"{len(plan.update)} updated",
+                 f"{len(plan.same)} unchanged"]
+        if plan.kept:
+            parts.append(_col(f"{len(plan.kept)} kept (local changes)", YELLOW))
+        if plan.conflict:
+            parts.append(_col(f"{len(plan.conflict)} conflict (local directory)", RED))
+        skipped = res.skipped.get(it.spec, [])
+        if skipped:
+            parts.append(_col(f"{len(skipped)} skipped (unsafe link)", YELLOW))
+        print(f"  {verb} {n:>4}  {where}  ({', '.join(parts)})")
+        for rel in (plan.kept + plan.conflict)[:20]:
+            print(f"           {DIM}kept: {os.path.join(it.spec, rel) if rel else it.spec}{RESET}")
+        for m in skipped[:20]:
+            print(f"           {DIM}skipped: {m}{RESET}")
+        kept_any |= bool(plan.kept or plan.conflict)
+    if kept_any:
+        print(_col("Local files that changed since they were fetched, or that git cannot "
+                   "restore, were kept; --force replaces them.", YELLOW))
+    if any(p.kind == "missing" for p in res.plans):
+        sys.exit(1)
+
+
 def cmd_repo_status(args) -> None:
-    info = core.repo_for(args.dir, args.host)
+    info = core.repo_for(args.dir, args.hosts)
     print(f"{BOLD}{info.repo.name}{RESET}  local: {info.repo.root}  at {info.repo.describe()}")
     stale = 0
     for target, problem in core.repo_status(info.repo, info.copies):
@@ -275,6 +337,14 @@ def cmd_repo_status(args) -> None:
 
 
 def cmd_daemon(args) -> None:
+    if args.action == "stop":
+        cmd_stop(args)
+        return
+    if args.action == "status":
+        pid = core.daemon_pid()
+        print(f"Daemon running (PID {pid}). Logs: {core.DAEMON_LOG}" if pid
+              else "Daemon is not running (it starts on the next submit).")
+        return
     pid = core.start_daemon()
     if pid is None:
         print("Daemon is already running.")
@@ -292,20 +362,26 @@ def cmd_stop(args) -> None:
 
 
 def cmd_wait(args) -> None:
-    con = core.db_open()
-    print(f"Waiting for task {args.id} to finish (Ctrl+C to stop waiting)...")
+    """
+    Wait for tasks to finish; exit with a code reflecting how they ended
+    (core.wait_exit_code). Reports go to stderr; stdout stays empty.
+    """
+    ids = list(dict.fromkeys(args.ids))
     try:
-        while True:
-            r = con.execute("SELECT status FROM tasks WHERE id=?", (args.id,)).fetchone()
-            if not r:
-                print(f"Task {args.id} not found.")
-                sys.exit(1)
-            if r["status"] not in ("queued", "running"):
-                print(f"Task {args.id} finished: {r['status']}")
-                return
-            time.sleep(5)
+        done, pending = core.wait_for(ids, timeout=args.timeout)
     except KeyboardInterrupt:
-        print("\nStopped waiting (task still running).")
+        print("task: stopped waiting (tasks keep running)", file=sys.stderr)
+        sys.exit(core.EXIT_KILLED)
+    for tid in ids:
+        if tid in done:
+            print(core.describe_end(done[tid]), file=sys.stderr)
+        else:
+            print(f"task {tid}: still {core.get_task(tid)['status']} "
+                  f"(timed out after {args.timeout:g}s)", file=sys.stderr)
+    if pending:
+        sys.exit(core.EXIT_TIMEOUT)
+    codes = [core.wait_exit_code(done[tid]) for tid in sorted(ids)]
+    sys.exit(next((c for c in codes if c), 0))
 
 
 def _run_on_server(host, command: str) -> tuple[bool, str]:
@@ -320,9 +396,14 @@ def _run_on_server(host, command: str) -> tuple[bool, str]:
     return rc == 0, f"{output}\n({hint})" if hint else output
 
 
-def cmd_run_all(args) -> None:
-    command = args.run_all
-    hosts = get_cfg().workers()
+def cmd_exec(args) -> None:
+    if not args.command:
+        sys.exit("task exec: no command given, e.g.: task exec -- nvidia-smi -L")
+    command = core.command_from_argv(args.command)
+    try:
+        hosts = get_cfg().select(args.hosts)
+    except ConfigError as e:
+        sys.exit(f"task exec: -H {args.hosts}: {e}")
     n = len(hosts)
     print(f"{BOLD}Running on {n} servers:{RESET} {command}  "
           f"{DIM}network: {get_transport().describe_mode()}{RESET}\n")
@@ -399,7 +480,7 @@ def _lookup_host(name: str):
 
 
 def cmd_ssh(args) -> None:
-    host = _lookup_host(args.ssh)
+    host = _lookup_host(args.host)
     argv = get_transport().interactive_argv(host)
     os.execvp(argv[0], argv)
 
@@ -415,161 +496,183 @@ def cmd_connect(args) -> None:
     print("Jump connections are open; the daemon will reuse them.")
 
 
-def cmd_init_config(args) -> None:
+def cmd_config(args) -> None:
     path = config_path()
+    if args.action == "path":
+        print(path if path.exists() else f"{path} (does not exist; built-in defaults are used)")
+        return
     if path.exists():
         print(f"{path} already exists; not overwriting.")
         sys.exit(1)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(config_template())
-    print(f"Wrote {path}. Edit it, then check with: task --hosts")
+    print(f"Wrote {path}. Edit it, then check with: task hosts")
 
 
-def cmd_gpu_status(args) -> None:
-    from gpu_spooler.gpu_status import main as _gpu_status_main
-    _gpu_status_main([])
+def cmd_gpus(args) -> None:
+    from gpu_spooler.gpu_status import run as gpu_status_run
+    gpu_status_run(args)
+
+
+def cmd_tui(args) -> None:
+    from gpu_spooler.tui import main as tui_main
+    tui_main()
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
+class _Formatter(argparse.RawDescriptionHelpFormatter):
+    def __init__(self, prog):
+        super().__init__(prog, max_help_position=30)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="task",
-        description="GPU task spooler for SSH-reachable GPU servers.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-        add_help=True,
+        prog="task", description=__doc__, formatter_class=_Formatter,
+        usage="task COMMAND [OPTIONS] [ARGS]",
     )
+    p.add_argument("-V", "--version", action="version", version=f"%(prog)s {_version()}")
+    sub = p.add_subparsers(dest="cmd", metavar="COMMAND", help=argparse.SUPPRESS)
 
-    # ── Submission ────────────────────────────────────────────────────────────
-    p.add_argument(
-        "-G", "--gpus", metavar="N", type=int,
-        help="Number of GPUs required (submit mode); 0 for a CPU-only job",
-    )
-    p.add_argument(
-        "-H", "--host", metavar="SPEC",
-        help="Only run on these hosts, groups or tags (comma separated)",
-    )
-    p.add_argument(
-        "-m", "--min-mem", metavar="GB", type=int, default=0,
-        help="Minimum VRAM per GPU in GB (e.g. 40 for A40/A6000)",
-    )
-    p.add_argument(
-        "-n", "--name", metavar="LABEL",
-        help="Optional human-readable label for the task",
-    )
-    p.add_argument(
-        "-d", "--dir", metavar="PATH",
-        help="Working directory (default: current directory; translated by path_map or remote_root)",
-    )
+    def cmd(name: str, func, help: str, aliases=()):
+        c = sub.add_parser(name, aliases=list(aliases), help=help, description=help,
+                           formatter_class=_Formatter)
+        c.set_defaults(func=func)
+        return c
 
-    # ── Inspection ────────────────────────────────────────────────────────────
-    p.add_argument("-l", "--list",   action="store_true", help="List tasks (most recent 200)")
-    p.add_argument("-L", "--all",    action="store_true", help="List all tasks (no limit)")
-    p.add_argument("-i", "--info",   metavar="ID", type=int, help="Detailed info for a task")
-    p.add_argument("-o", "--output", metavar="ID", type=int, help="Print saved output of a task")
-    p.add_argument("-f", "--follow", metavar="ID", type=int, help="Stream live output of a task")
+    def hosts_arg(c, what="Only these hosts, groups or tags (comma separated)"):
+        c.add_argument("-H", "--hosts", metavar="SPEC", help=what)
 
-    # ── Management ───────────────────────────────────────────────────────────
-    p.add_argument("-k",  "--kill",     metavar="ID", type=int, help="Kill or cancel a task")
-    p.add_argument("-K", "--kill-all", action="store_true",    help="Kill all running and queued tasks and stop the daemon")
-    p.add_argument("-c", "--clear", action="store_true", help="Remove finished tasks from the list")
-    p.add_argument("-w", "--wait",  metavar="ID", type=int, help="Block until a task finishes")
-    p.add_argument("-r", "--resubmit", metavar="ID", type=int,
-                   help="Queue a copy of a task (same command, GPUs, hosts and directory)")
+    def dir_arg(c, what):
+        c.add_argument("-C", "--dir", metavar="DIR", help=what)
 
-    # ── GPU / daemon ──────────────────────────────────────────────────────────
-    p.add_argument("-R", "--run-all", metavar="CMD",
-                   help="Run a shell command on every GPU server in parallel and report results")
-    p.add_argument("--gpu-status", action="store_true", help="Show GPU availability across servers")
-    p.add_argument("--daemon",     action="store_true", help="Start daemon (if not already running)")
-    p.add_argument("--stop",       action="store_true", help="Stop the background daemon")
-    p.add_argument("--sync",       action="store_true",
-                   help="Push this git repo's working tree to its remote copies (remote_root)")
-    p.add_argument("--repo-status", action="store_true",
-                   help="Check whether the remote copies of this git repo are up to date")
-    p.add_argument("--hosts",      action="store_true",
-                   help="Show configured hosts, reachability and network mode")
-    p.add_argument("--connect",    action="store_true",
-                   help="Open jump-host connections interactively (password/OTP once)")
-    p.add_argument("--ssh",        metavar="HOST",
-                   help="Open an interactive shell on a host via the generated ssh config")
-    p.add_argument("--init-config", action="store_true",
-                   help="Write a commented hosts.toml template (never overwrites)")
+    def ids_arg(c, nargs="+"):
+        c.add_argument("ids", metavar="ID", type=int, nargs=nargs)
 
-    # Internal: daemon loop (not for user use)
-    p.add_argument("--_daemon-loop", action="store_true", help=argparse.SUPPRESS)
+    # ── tasks ────────────────────────────────────────────────────────────────
+    c = cmd("submit", cmd_submit, "Queue a command to run on a GPU server")
+    c.add_argument("-g", "--gpus", metavar="N", type=int, default=1,
+                   help="GPUs the task needs (default 1; 0 = CPU-only, on hosts with cpu_slots)")
+    hosts_arg(c, "Only run on these hosts, groups or tags (comma separated)")
+    c.add_argument("-t", "--gpu-type", metavar="MODEL",
+                   help="Only GPUs nvidia-smi names this model, e.g. \"RTX A5000\" (exact, "
+                        "ignoring case and 'NVIDIA '; comma separated for several)")
+    c.add_argument("-m", "--min-mem", metavar="GB", type=int, default=0,
+                   help="Only GPUs with at least this much memory, e.g. 40")
+    c.add_argument("-n", "--name", metavar="LABEL", help="A label shown in the task list")
+    dir_arg(c, "Working directory (default: here; mapped by path_map or remote_root)")
+    c.add_argument("-q", "--quiet", action="store_true",
+                   help="Print only the task ID (for scripts)")
+    c.add_argument("command", nargs=argparse.REMAINDER, metavar="-- CMD",
+                   help="The command; one quoted argument is run as shell code")
 
-    # Positional: the command to run (used with -G)
-    p.add_argument("command", nargs=argparse.REMAINDER, help="Command to queue (used with -G)")
+    c = cmd("list", cmd_list, "List tasks", aliases=["ls"])
+    c.add_argument("-a", "--all", action="store_true", help="All tasks, not only the last 200")
 
+    c = cmd("info", cmd_info, "Show the details of a task")
+    c.add_argument("id", metavar="ID", type=int)
+
+    c = cmd("logs", cmd_logs, "Print a task's output")
+    c.add_argument("id", metavar="ID", type=int)
+    c.add_argument("-f", "--follow", action="store_true", help="Keep printing new output")
+
+    c = cmd("wait", cmd_wait, "Wait for tasks to finish",)
+    c.description = ("Wait for tasks to finish. Exit code: 0 all done, the job's exit code if "
+                     "one failed, 130 killed or cancelled, 75 lost, 124 timed out.")
+    ids_arg(c)
+    c.add_argument("--timeout", metavar="S", type=float,
+                   help="Give up after S seconds (exit 124; the tasks keep running)")
+
+    c = cmd("kill", cmd_kill, "Cancel queued or kill running tasks")
+    ids_arg(c, nargs="*")
+    c.add_argument("--all", action="store_true", help="Every queued and running task")
+
+    c = cmd("resubmit", cmd_resubmit, "Queue a copy of a task (same command and options)")
+    c.add_argument("id", metavar="ID", type=int)
+    c.add_argument("-q", "--quiet", action="store_true", help="Print only the new task ID")
+
+    c = cmd("clear", cmd_clear, "Remove finished tasks, their logs and job directories")
+    c.add_argument("--reset", action="store_true",
+                   help="Also forget everything else and restart IDs at 1 (no task may be "
+                        "queued or running)")
+
+    # ── repos ────────────────────────────────────────────────────────────────
+    c = cmd("sync", cmd_sync, "Push this git repo's working tree to its copy on the servers")
+    c.add_argument("--check", action="store_true",
+                   help="Only report whether the copies are up to date (exit 1 if not)")
+    hosts_arg(c)
+    dir_arg(c, "The repo (default: the one containing the current directory)")
+
+    c = cmd("fetch", cmd_fetch, "Copy outputs back from the servers' copy of this repo")
+    c.description = ("Copy PATHs back from the servers. A relative PATH maps into this repo's "
+                     "copy (or a path_map entry); REMOTE:LOCAL names both sides. Links are "
+                     "never followed and locally changed files are kept.")
+    c.add_argument("paths", metavar="PATH", nargs="+")
+    c.add_argument("--after", metavar="ID", type=int, nargs="+",
+                   help="Wait for these tasks first; fetch only if all are done")
+    c.add_argument("--force", action="store_true", help="Also replace locally changed files")
+    c.add_argument("--dry-run", action="store_true", help="Show what would change, copy nothing")
+    hosts_arg(c, "Fetch from this host group (needed if several are selected)")
+    dir_arg(c, "Resolve PATHs from this directory instead of the current one")
+
+    # ── cluster ──────────────────────────────────────────────────────────────
+    from gpu_spooler.gpu_status import add_arguments as gpu_status_arguments
+    c = cmd("gpus", cmd_gpus, "Show GPU availability across servers (same as gpu-status)")
+    gpu_status_arguments(c)
+
+    cmd("hosts", cmd_hosts, "Show configured hosts, reachability and network mode")
+
+    c = cmd("exec", cmd_exec, "Run a shell command on every (selected) server in parallel")
+    hosts_arg(c)
+    c.add_argument("command", nargs=argparse.REMAINDER, metavar="-- CMD")
+
+    c = cmd("ssh", cmd_ssh, "Open an interactive shell on a host")
+    c.add_argument("host", metavar="HOST")
+
+    cmd("connect", cmd_connect, "Log in to the jump hosts once (password / OTP)")
+
+    c = cmd("daemon", cmd_daemon, "Start, stop or check the background daemon")
+    c.add_argument("action", choices=["start", "stop", "status"])
+
+    c = cmd("config", cmd_config, "Write a hosts.toml template, or show where it is")
+    c.add_argument("action", choices=["init", "path"])
+
+    cmd("tui", cmd_tui, "Interactive view of the queue, logs and GPUs")
     return p
 
 
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
-    # Internal: run the actual daemon loop
-    if args._daemon_loop:
-        from gpu_spooler.daemon import main as daemon_main
-        daemon_main()
-        return
-
+def _version() -> str:
     try:
-        dispatch(parser, args)
+        from importlib.metadata import version
+        return version("gpu-spooler")
+    except Exception:
+        return "unknown"
+
+
+def _strip_dashdash(argv: list[str]) -> list[str]:
+    return argv[1:] if argv[:1] == ["--"] else argv
+
+
+def run(argv: list[str]) -> None:
+    """Parse one subcommand argv and run it."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not getattr(args, "func", None):
+        parser.print_help()
+        return
+    if hasattr(args, "command"):
+        args.command = _strip_dashdash(args.command)
+    args.func(args)
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    try:
+        run(argv)
     except core.TaskError as e:
-        sys.exit(f"task: {e}")
+        print(f"task: {e}", file=sys.stderr)
+        sys.exit(1)
     except ConfigError as e:
         sys.exit(f"task: config error: {e}")
-
-
-def dispatch(parser, args) -> None:
-
-    # Route to the appropriate command
-    if args.gpus is not None:
-        if not args.command:
-            parser.error("-G requires a command, e.g.: task -G 1 python3 train.py")
-        cmd_submit(args)
-    elif args.list or args.all:
-        cmd_list(args)
-    elif args.info is not None:
-        args.id = args.info;   cmd_info(args)
-    elif args.output is not None:
-        args.id = args.output; cmd_output(args)
-    elif args.follow is not None:
-        args.id = args.follow; cmd_follow(args)
-    elif args.kill is not None:
-        args.id = args.kill;   cmd_kill(args)
-    elif args.kill_all:
-        cmd_kill_all(args)
-    elif args.clear:
-        cmd_clear(args)
-    elif args.wait is not None:
-        args.id = args.wait;   cmd_wait(args)
-    elif args.run_all:
-        cmd_run_all(args)
-    elif args.gpu_status:
-        cmd_gpu_status(args)
-    elif args.daemon:
-        cmd_daemon(args)
-    elif args.stop:
-        cmd_stop(args)
-    elif args.resubmit is not None:
-        cmd_resubmit(args)
-    elif args.sync:
-        cmd_sync(args)
-    elif args.repo_status:
-        cmd_repo_status(args)
-    elif args.init_config:
-        cmd_init_config(args)
-    elif args.hosts:
-        cmd_hosts(args)
-    elif args.ssh:
-        cmd_ssh(args)
-    elif args.connect:
-        cmd_connect(args)
-    else:
-        parser.print_help()
 
 
 if __name__ == "__main__":
