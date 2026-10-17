@@ -30,7 +30,7 @@ def test_missing_file_gives_builtin(tmp_path):
 def test_env_var_overrides_path(tmp_path, monkeypatch):
     p = tmp_path / "h.toml"
     p.write_text('[hosts.box]\nhostname = "box.example"\n')
-    monkeypatch.setenv("TASK_SPOOLER_CONFIG", str(p))
+    monkeypatch.setenv("GPU_SPOOLER_CONFIG", str(p))
     cfg = C.load_config()
     assert cfg.source == p
     assert [h.name for h in cfg.workers()] == ["box"]
@@ -149,13 +149,14 @@ def test_cli_init_config_never_overwrites(tmp_path):
     import subprocess
     from pathlib import Path
     target = tmp_path / "hosts.toml"
-    env = dict(os.environ, HOME=str(tmp_path), TASK_SPOOLER_CONFIG=str(target),
+    env = dict(os.environ, HOME=str(tmp_path), GPU_SPOOLER_CONFIG=str(target),
                PYTHONPATH=str(Path(__file__).resolve().parent.parent))
     run = lambda: subprocess.run([sys.executable, "-m", "gpu_spooler.task", "config", "init"],
                                  env=env, capture_output=True, text=True)
     r = run()
     assert r.returncode == 0 and target.exists()
     assert C.load_config(target).mode == "auto"
+    assert "for user" in r.stdout and "--user" in r.stdout          # names the user it used
     target.write_text("# mine\n")
     r = run()
     assert r.returncode != 0 and target.read_text() == "# mine\n"
@@ -164,7 +165,7 @@ def test_cli_init_config_never_overwrites(tmp_path):
 def test_cli_list_with_builtin_config(tmp_path):
     import subprocess
     from pathlib import Path
-    env = dict(os.environ, HOME=str(tmp_path), TASK_SPOOLER_CONFIG=str(tmp_path / "none.toml"),
+    env = dict(os.environ, HOME=str(tmp_path), GPU_SPOOLER_CONFIG=str(tmp_path / "none.toml"),
                PYTHONPATH=str(Path(__file__).resolve().parent.parent))
     r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", "list"], env=env,
                        capture_output=True, text=True)
@@ -208,3 +209,16 @@ def test_builtin_catalogue_uses_reported_names():
     assert DEFAULT_SERVER_INFO["cuda05"][:3] == ("RTX PRO 5000 Blackwell", 2, 48)
     assert DEFAULT_SERVER_INFO["cuda09"][0] == "RTX PRO 4000 Blackwell"
     assert DEFAULT_SERVER_INFO["cuda12"][0] == DEFAULT_SERVER_INFO["cuda13"][0] == "RTX A5000"
+
+
+def test_cli_init_config_user(tmp_path):
+    import subprocess
+    from pathlib import Path
+    target = tmp_path / "hosts.toml"
+    env = dict(os.environ, HOME=str(tmp_path), GPU_SPOOLER_CONFIG=str(target),
+               PYTHONPATH=str(Path(__file__).resolve().parent.parent))
+    r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", "config", "init", "-u", "abc1"],
+                       env=env, capture_output=True, text=True)
+    assert r.returncode == 0
+    cfg = C.load_config(target)
+    assert cfg.hosts["cuda14"].user == "abc1" and cfg.hosts["cuda14"].remote_root.endswith("/abc1")

@@ -504,9 +504,12 @@ def cmd_config(args) -> None:
     if path.exists():
         print(f"{path} already exists; not overwriting.")
         sys.exit(1)
+    import getpass
+    user = args.user or getpass.getuser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(config_template())
-    print(f"Wrote {path}. Edit it, then check with: task hosts")
+    path.write_text(config_template(user))
+    how = "" if args.user else " (your local username; use --user if your ECS one differs)"
+    print(f"Wrote {path} for user '{user}'{how}. Check it with: task hosts")
 
 
 def cmd_gpus(args) -> None:
@@ -519,6 +522,59 @@ def cmd_tui(args) -> None:
     tui_main()
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
+
+# Shown at the end of `task COMMAND -h`.
+EXAMPLES = {
+    "submit": [
+        ("python3 train.py --epochs 50", "1 GPU on any free server"),
+        ('-g 2 -n "ablation" -- ./run.sh --lr 3e-4', "2 GPUs, with a label"),
+        ('-t "RTX A5000" -- python3 eval.py', "only on RTX A5000 GPUs"),
+        ("-m 40 -H cuda14,cuda15 -- python3 big.py", "48 GB cards on these hosts"),
+        ("-g 0 -H local -- 'make plots && echo done'", "CPU job; one argument = shell code"),
+        ('id=$(task submit -q -- python3 train.py)', "keep the ID for wait / fetch"),
+    ],
+    "list": [("", "the 200 most recent tasks"), ("-a", "every task")],
+    "info": [("12", "server, GPUs, directories, times, exit code")],
+    "logs": [("12", "everything task 12 printed so far"),
+             ("-f 12", "keep following it (Ctrl+C stops following, not the task)")],
+    "wait": [("12", "block until task 12 ends; exit code says how"),
+             ("12 13 14 --timeout 3600", "all three, for at most an hour"),
+             ('12 && task fetch results', "fetch only if the task succeeded")],
+    "kill": [("12", "cancel it if queued, kill it if running"),
+             ("12 13 14", "several at once"), ("--all", "every queued and running task")],
+    "resubmit": [("12", "queue a copy (same command, GPUs, hosts, directory)")],
+    "clear": [("", "forget finished tasks and delete their logs"),
+              ("--reset", "forget everything and restart IDs at 1")],
+    "sync": [("", "push this repo's working tree (uncommitted changes included)"),
+             ("--check", "is the servers' copy up to date? (exit 1 if not)")],
+    "fetch": [("results", "this repo's results/ from the servers' copy"),
+              ("results --after 12 13", "once tasks 12 and 13 are done"),
+              ("results --dry-run", "show what would change"),
+              ("/vol/ecrg-solar/me/run/results:out", "explicit REMOTE:LOCAL")],
+    "gpus": [("", "one row per server"), ("-f", "only servers with a free GPU"),
+             ("-d -H cuda14", "one row per GPU on cuda14")],
+    "hosts": [("", "route, reachability and GPU count of every configured host")],
+    "exec": [("-- nvidia-smi -L", "on every server"),
+             ('-H cuda14,cuda15 -- "df -h /vol/ecrg-solar"', "on two servers")],
+    "ssh": [("cuda14", "a shell on cuda14, through the jump hosts if needed")],
+    "connect": [("", "type the jump host's password / OTP once; the daemon reuses it")],
+    "daemon": [("status", "is it running?"), ("stop", "running jobs keep running"),
+               ("start", "it also starts by itself on submit")],
+    "config": [("init --user woodj4", "write ~/.gpu-spooler/hosts.toml (never overwrites)"),
+               ("path", "which config file is in use")],
+    "tui": [("", "live queue, logs and a GPU heatmap (q quits)")],
+}
+
+
+def _examples(name: str) -> str | None:
+    rows = EXAMPLES.get(name)
+    if not rows:
+        return None
+    cmds = [a if a.startswith("id=") else f"task {name} {a}".rstrip() for a, _ in rows]
+    width = max(map(len, cmds))
+    lines = [f"  {c:<{width}}  # {what}" for c, (_, what) in zip(cmds, rows)]
+    return "Examples:\n" + "\n".join(lines)
+
 
 class _Formatter(argparse.RawDescriptionHelpFormatter):
     def __init__(self, prog):
@@ -535,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     def cmd(name: str, func, help: str, aliases=()):
         c = sub.add_parser(name, aliases=list(aliases), help=help, description=help,
-                           formatter_class=_Formatter)
+                           formatter_class=_Formatter, epilog=_examples(name))
         c.set_defaults(func=func)
         return c
 
@@ -635,6 +691,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     c = cmd("config", cmd_config, "Write a hosts.toml template, or show where it is")
     c.add_argument("action", choices=["init", "path"])
+    c.add_argument("-u", "--user", metavar="NAME",
+                   help="With init: your username on the servers (default: your local one)")
 
     cmd("tui", cmd_tui, "Interactive view of the queue, logs and GPUs")
     return p

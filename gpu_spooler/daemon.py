@@ -1,5 +1,5 @@
 """
-The task-spooler daemon: dispatches queued tasks to hosts and polls detached
+The gpu-spooler daemon: dispatches queued tasks to hosts and polls detached
 jobs for completion, syncing their logs. Started by `core.start_daemon()`
 (python -m gpu_spooler.daemon).
 """
@@ -18,7 +18,7 @@ from gpu_spooler.gpu import ServerResult, gpu_type_matches, query_hosts, write_s
 from gpu_spooler.transport import auth_hint
 
 POLL_INTERVAL   = 30   # seconds between GPU polls / dispatch
-STATUS_INTERVAL = float(os.environ.get("TASK_SPOOLER_STATUS_INTERVAL", 5))
+STATUS_INTERVAL = float(os.environ.get("GPU_SPOOLER_STATUS_INTERVAL", 5))
                        # seconds between status / log-sync polls of running jobs
 LAUNCH_TIMEOUT  = 60
 STATUS_TIMEOUT  = 60
@@ -462,7 +462,7 @@ class Daemon:
         reason = (err.strip().splitlines() or [f"exit {rc}"])[-1]
         hint = auth_hint(err)
         with open(log_path, "a") as f:
-            f.write(f"task-spooler: launch on {host.name} failed: {err.strip() or out.strip()}\n")
+            f.write(f"gpu-spooler: launch on {host.name} failed: {err.strip() or out.strip()}\n")
         retry_count = row["retry_count"] or 0
         if retry_count < core.MAX_RETRIES:
             self._update_running(task_id, key, core.REQUEUE)

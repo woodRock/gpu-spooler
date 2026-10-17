@@ -42,13 +42,13 @@ def fake(*args: str) -> str:
 
 
 class TS:
-    """An isolated task-spooler environment (own HOME) driven via the CLI."""
+    """An isolated gpu-spooler environment (own HOME) driven via the CLI."""
 
     def __init__(self, home: Path, config: Path):
         self.home = home
-        self.state = home / ".task-spooler"
-        self.env = dict(os.environ, HOME=str(home), TASK_SPOOLER_CONFIG=str(config),
-                        PYTHONPATH=str(REPO), TASK_SPOOLER_STATUS_INTERVAL="1",
+        self.state = home / ".gpu-spooler"
+        self.env = dict(os.environ, HOME=str(home), GPU_SPOOLER_CONFIG=str(config),
+                        PYTHONPATH=str(REPO), GPU_SPOOLER_STATUS_INTERVAL="1",
                         NO_COLOR="1")
 
     def run(self, *args: str, check: bool = True, timeout: float = 120,

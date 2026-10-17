@@ -1,8 +1,8 @@
 """
-Host configuration for task-spooler.
+Host configuration for gpu-spooler.
 
-Hosts are read from ~/.task-spooler/hosts.toml (override with the
-TASK_SPOOLER_CONFIG environment variable). When the file is absent a built-in
+Hosts are read from ~/.gpu-spooler/hosts.toml (override with the
+GPU_SPOOLER_CONFIG environment variable). When the file is absent a built-in
 default reproducing the original hardcoded ECS server list is used.
 """
 
@@ -18,7 +18,7 @@ if sys.version_info >= (3, 11):
 else:  # pragma: no cover - exercised on 3.10 only
     import tomli as tomllib
 
-STATE_DIR = Path.home() / ".task-spooler"
+STATE_DIR = Path.home() / ".gpu-spooler"
 DEFAULT_CONFIG_PATH = STATE_DIR / "hosts.toml"
 
 # ── Built-in server catalogue (the original hardcoded list) ───────────────────
@@ -205,7 +205,7 @@ class Config:
 
 
 def config_path() -> Path:
-    env = os.environ.get("TASK_SPOOLER_CONFIG")
+    env = os.environ.get("GPU_SPOOLER_CONFIG")
     return Path(env).expanduser() if env else DEFAULT_CONFIG_PATH
 
 
@@ -418,7 +418,7 @@ def config_template(user: str = "woodj4") -> str:
         )
     host_list = ",\n    ".join(f'"{n}"' for n in DEFAULT_SERVERS)
     return f'''\
-# task-spooler host configuration.
+# gpu-spooler host configuration.
 # Docs: see the "Configuration" section of the README.
 
 [network]

@@ -1,5 +1,5 @@
 """
-Shared task-spooler operations: the queue database, daemon process control,
+Shared gpu-spooler operations: the queue database, daemon process control,
 and every action the front ends offer (submit, kill, resubmit, clear, ...).
 
 Nothing here prints. The `task` CLI and the `tui` app are thin layers that
@@ -336,7 +336,7 @@ def task_details(r) -> list[tuple[str, str]]:
     if r["gpu_indices"]:
         out.append(("GPU indices", r["gpu_indices"]))
     if r["job_key"]:
-        out.append(("Job", f"~/.task-spooler/jobs/{r['job_key']}"
+        out.append(("Job", f"~/.gpu-spooler/jobs/{r['job_key']}"
                     + (f"  (PGID {r['remote_pid']})" if r["remote_pid"] else "")))
     if r["status"] == "running" and r["last_seen"]:
         out.append(("Last seen", f"{fmt_duration(time.time() - r['last_seen'])} ago"))

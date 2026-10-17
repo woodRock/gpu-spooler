@@ -12,11 +12,58 @@ Jobs run **detached** on the server. Closing your laptop, losing wifi or restart
 
 ---
 
+## Quick Start
+
+```bash
+git clone https://github.com/woodRock/gpu-spooler.git && cd gpu-spooler
+bash install.sh                  # installs task, gpu-status and tui into ~/.local/bin
+```
+
+On an ECS machine that's all the setup. On a laptop, once:
+
+```bash
+task config init --user woodj4   # writes ~/.gpu-spooler/hosts.toml with your ECS username
+task hosts                       # can every server be reached?
+task connect                     # only if the jump host asks for a password / OTP
+```
+
+Then:
+
+```bash
+task gpus                                      # which servers have free GPUs
+task submit -- python3 train.py --epochs 50    # 1 GPU unless -g says otherwise
+task list                                      # the queue
+task logs -f 1                                 # follow task 1's output
+task kill 1                                    # cancel or kill it
+```
+
+From a laptop checkout of a git repo, push the code first and copy the results back after:
+
+```bash
+task sync                                      # copy this repo's working tree to the servers
+id=$(task submit -q -- python3 train.py)       # -q prints only the task ID
+task fetch results --after "$id"               # copy results/ back once the task is done
+```
+
+`task -h` lists every command and `task COMMAND -h` its options, with examples. The same short flag means the same thing in every command:
+
+| Flag | Meaning |
+|------|---------|
+| `-H SPEC` / `--hosts SPEC` | hosts, groups or tags (comma separated) |
+| `-C DIR` / `--dir DIR` | the directory to act on, as with `git -C` |
+| `-g N` / `--gpus N` | GPUs a task needs |
+| `-t MODEL` / `--gpu-type MODEL` | GPU model, as `nvidia-smi` names it |
+| `-n LABEL` / `--name LABEL` | a task's label |
+| `-q` / `--quiet` | print only the task ID |
+| `-f` | follow (`logs -f`), or only free GPUs (`gpus -f`) |
+
+---
+
 ## Contents
 
+- [Quick Start](#quick-start)
 - [How It Works](#how-it-works)
 - [Installation](#installation)
-- [Quick Start](#quick-start)
 - [Commands](#commands)
   - [Submitting Tasks](#submitting-tasks)
   - [Inspecting Tasks](#inspecting-tasks)
@@ -48,18 +95,18 @@ Jobs run **detached** on the server. Closing your laptop, losing wifi or restart
   │                     ├── ssh → nvidia-smi ───────►  │
   │                     │◄── free GPUs ──────────────  │
   │                     │                              │
-  │                     ├── ssh → start detached ───►  │  ~/.task-spooler/jobs/<key>/
+  │                     ├── ssh → start detached ───►  │  ~/.gpu-spooler/jobs/<key>/
   │                     │   CUDA_VISIBLE_DEVICES=0     │    run.sh  pid  out.log  rc
   │                     │                              │
   │                     ├── every 5s: status + new ─►  │
   │                     │◄── log bytes ──────────────  │
-  ├─ task logs -f 1 ──► │  ~/.task-spooler/logs/1.log  │
+  ├─ task logs -f 1 ──► │  ~/.gpu-spooler/logs/1.log  │
 ```
 
 1. `task submit -g N cmd` adds a job to a local SQLite queue and auto-starts the daemon.
 2. The daemon polls the GPU servers in parallel every 30 seconds with `nvidia-smi`. It polls immediately when a new task is queued.
 3. When a server has at least N free GPUs, the daemon starts the command there **in its own session**, in a login shell with `CUDA_VISIBLE_DEVICES` set. Your `~/.bashrc` and conda environments are loaded.
-4. Every 5 seconds, one SSH call per server checks each job and copies new output into `~/.task-spooler/logs/<id>.log`. If a server is unreachable, its jobs stay `running` until it comes back.
+4. Every 5 seconds, one SSH call per server checks each job and copies new output into `~/.gpu-spooler/logs/<id>.log`. If a server is unreachable, its jobs stay `running` until it comes back.
 5. The daemon uses **bin-packing**: it fills servers with fewer GPUs first, so it doesn't fragment GPUs across too many machines.
 
 All SSH traffic goes through a generated config with connection sharing (`ControlMaster`). After the first call, each later one reuses an open connection and takes milliseconds.
@@ -70,13 +117,7 @@ All SSH traffic goes through a generated config with connection sharing (`Contro
 
 **Requirements:** Python 3.10+, and SSH access to the GPU servers with key-based auth. Off campus, you can use a key or a one-time password on the jump host (see [Working Off Campus](#working-off-campus)).
 
-```bash
-git clone <repo-url> task-spooler
-cd task-spooler
-bash install.sh
-```
-
-The installer creates a `.venv` in the project directory, installs the package in editable mode (with the optional [Textual](https://textual.textualize.io) dependency for `tui`), and symlinks `task`, `gpu-status` and `tui` into `~/.local/bin`.
+`bash install.sh` (see [Quick Start](#quick-start)) creates a `.venv` in the project directory, installs the package in editable mode (with the optional [Textual](https://textual.textualize.io) dependency for `tui`), and symlinks `task`, `gpu-status` and `tui` into `~/.local/bin`.
 
 There are three commands:
 
@@ -94,40 +135,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Since the install is **editable**, any changes you make to the source files take effect immediately without reinstalling.
 
-### Installing packages across the cluster
-
-To install a Python package on every GPU server at once (e.g. after adding a new dependency):
-
-```bash
-task exec -- "cd /vol/ecrg-solar/woodj4/depth-learning && pip install -e ."
-```
-
----
-
-## Quick Start
-
-```bash
-task gpus                                          # which servers have free GPUs
-task submit -- python3 train.py --epochs 50        # 1 GPU unless -g says otherwise
-task submit -g 2 -n "ablation" -- python3 train.py --model large
-task list                                          # the queue
-task logs -f 1                                     # follow task 1's output
-task kill 1                                        # cancel / kill it
-```
-
-On a laptop, run `task config init` once and then `task hosts` (see [Configuration](#configuration)).
-
-`task -h` lists every command and `task COMMAND -h` its options. The same short flag means the same thing in every command:
-
-| Flag | Meaning |
-|------|---------|
-| `-H SPEC` / `--hosts SPEC` | hosts, groups or tags (comma separated) |
-| `-C DIR` / `--dir DIR` | the directory to act on, as with `git -C` |
-| `-g N` / `--gpus N` | GPUs a task needs |
-| `-t MODEL` / `--gpu-type MODEL` | GPU model, as `nvidia-smi` names it |
-| `-n LABEL` / `--name LABEL` | a task's label |
-| `-q` / `--quiet` | print only the task ID |
-| `-f` | follow (`logs -f`), or only free GPUs (`gpus -f`) |
+To install a Python package on every server at once, see [Cluster Operations](#cluster-operations).
 
 ---
 
@@ -234,7 +242,7 @@ The window shows a live queue table (newest first). Below it are tabs for the se
 | `d` | Start the daemon if it is stopped |
 | `q` | Quit |
 
-The GPU heatmap has one row per server and one cell per GPU. A cell is **green** when the GPU is free, **blue** when one of your tasks is using it (the cell shows the task ID), and **red** when it's in use by someone else (the cell shows their username). `tui` doesn't connect to the servers to get this. It reads `~/.task-spooler/gpu_snapshot.json`, which the daemon refreshes every 30 s while a `tui` is open. So the daemon needs to be running (press `d` to start it).
+The GPU heatmap has one row per server and one cell per GPU. A cell is **green** when the GPU is free, **blue** when one of your tasks is using it (the cell shows the task ID), and **red** when it's in use by someone else (the cell shows their username). `tui` doesn't connect to the servers to get this. It reads `~/.gpu-spooler/gpu_snapshot.json`, which the daemon refreshes every 30 s while a `tui` is open. So the daemon needs to be running (press `d` to start it).
 
 If Textual isn't installed, `tui` prints how to install it: `pip install -e '.[tui]'`, or re-run `install.sh`.
 
@@ -295,7 +303,7 @@ task exec -H cuda14,cuda15 -- nvidia-smi -L
 | `task hosts` | Table of configured hosts: kind, group, route (direct or via jump hosts), live reachability, GPU count, CPU slots and path mappings. Also shows the network mode and where the config came from. |
 | `task connect` | Log in to each jump host interactively, once. Use this when the jump host wants a password or OTP; the connection then stays open for the daemon. |
 | `task ssh HOST` | Open an interactive shell on a host through the same route the daemon uses. Useful for debugging. |
-| `task config init` | Write a commented `~/.task-spooler/hosts.toml` template. Never overwrites an existing file. |
+| `task config init [--user NAME]` | Write a commented `~/.gpu-spooler/hosts.toml` template for your username on the servers (default: your local one). Never overwrites an existing file. |
 | `task config path` | Print which config file is in use. |
 
 ---
@@ -310,18 +318,18 @@ The daemon starts automatically when you submit a job. You rarely need to manage
 | `task daemon stop` | Stop the daemon. Running tasks keep running on their servers. The next daemon picks them up again and copies the output it missed. |
 | `task daemon status` | Whether it is running, and its PID. |
 
-Daemon logs are written to `~/.task-spooler/daemon.log`.
+Daemon logs are written to `~/.gpu-spooler/daemon.log`.
 
 ---
 
 ## Configuration
 
-Hosts are read from `~/.task-spooler/hosts.toml`. You can point at another file with the `TASK_SPOOLER_CONFIG` environment variable. **Without the file, the built-in ECS server list is used** with plain `ssh <name>`, exactly as before. That's all you need on an ECS machine.
+Hosts are read from `~/.gpu-spooler/hosts.toml`. You can point at another file with the `GPU_SPOOLER_CONFIG` environment variable. **Without the file, the built-in ECS server list is used** with plain `ssh <name>`, exactly as before. That's all you need on an ECS machine.
 
 Create a starting point with:
 
 ```bash
-task config init          # writes ~/.task-spooler/hosts.toml
+task config init          # writes ~/.gpu-spooler/hosts.toml
 task hosts                # check what it resolves to
 ```
 
@@ -367,7 +375,7 @@ cpu_slots = 2
 - **`remote_root`** is where your git repos live on those servers: see [Running Your Git Repos from a Laptop](#running-your-git-repos-from-a-laptop).
 - **`path_map`** translates the working directory when a job runs on that host, using the longest matching prefix. For example, `~/code/proj` on your laptop becomes `/vol/ecrg-solar/woodj4/proj` on ECS. The spooler doesn't copy code. It only translates the path, so the code needs to exist at the remote path.
 - **Jump chain** entries are either `user@host[:port]` or the name of a `[hosts.X]` entry.
-- From the config, the spooler generates `~/.task-spooler/ssh_config.direct` and `ssh_config.jump`, and calls `ssh -F <file>`. Your own `~/.ssh/config` is included last, so settings such as keys and agents still apply.
+- From the config, the spooler generates `~/.gpu-spooler/ssh_config.direct` and `ssh_config.jump`, and calls `ssh -F <file>`. Your own `~/.ssh/config` is included last, so settings such as keys and agents still apply.
 
 ---
 
@@ -481,10 +489,10 @@ If the machine has NVIDIA GPUs, `-G N` jobs can use them too. Without `nvidia-sm
 
 ## State & Logs
 
-All state is stored in `~/.task-spooler/`:
+All state is stored in `~/.gpu-spooler/`:
 
 ```
-~/.task-spooler/
+~/.gpu-spooler/
 ├── hosts.toml          # your host configuration (optional)
 ├── tasks.db            # SQLite database (all task records)
 ├── daemon.pid          # PID of the running daemon
@@ -500,7 +508,7 @@ All state is stored in `~/.task-spooler/`:
     └── ...
 ```
 
-On each server, a job lives in `~/.task-spooler/jobs/<id>-<random>/` (`run.sh`, `pid`, `out.log`, `rc`). ECS home directories are shared over NFS, so this is the same directory on every ECS machine. `task clear` removes these directories for finished tasks.
+On each server, a job lives in `~/.gpu-spooler/jobs/<id>-<random>/` (`run.sh`, `pid`, `out.log`, `rc`). ECS home directories are shared over NFS, so this is the same directory on every ECS machine. `task clear` removes these directories for finished tasks.
 
 Task logs include a header with the command, server, GPU indices, start time, and working directory, followed by the raw stdout/stderr of your job.
 
@@ -529,7 +537,7 @@ task submit -C /vol/ecrg-solar/woodj4/project -- python3 train.py
 Run `task hosts` to see the network mode and the SSH error for each host. SSH key-based auth must be set up for the servers. If the error mentions authentication and you're off campus, run `task connect`. To test one host by hand:
 
 ```bash
-ssh -F ~/.task-spooler/ssh_config.direct cuda01 echo ok    # or ssh_config.jump
+ssh -F ~/.gpu-spooler/ssh_config.direct cuda01 echo ok    # or ssh_config.jump
 ```
 
 If this prompts for a password, add your public key to the servers:
@@ -562,8 +570,8 @@ Tests use pytest. The integration tests start a fake cluster on localhost: four 
 
 # Use the fake cluster by hand
 dev/fake_cluster.sh up
-export TASK_SPOOLER_CONFIG=/tmp/ts-fake-cluster/hosts.toml
-export HOME=$(mktemp -d /tmp/tsh.XXXX)       # optional: isolate ~/.task-spooler
+export GPU_SPOOLER_CONFIG=/tmp/ts-fake-cluster/hosts.toml
+export HOME=$(mktemp -d /tmp/tsh.XXXX)       # optional: isolate ~/.gpu-spooler
 dev/fake_cluster.sh busy cuda01 0            # another "user" takes GPU 0
 dev/fake_cluster.sh stop barretts            # simulate a dropped jump host
 dev/fake_cluster.sh start barretts

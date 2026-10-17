@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fake ECS-like cluster on localhost for testing task-spooler.
+# Fake ECS-like cluster on localhost for testing gpu-spooler.
 #
 #   entry     127.0.0.1:2201   jump hop 1
 #   barretts  127.0.0.1:2202   jump hop 2
@@ -17,7 +17,7 @@
 #   dev/fake_cluster.sh stop HOST         # kill a host's sshd and all its connections
 #   dev/fake_cluster.sh start HOST
 #
-#   export TASK_SPOOLER_CONFIG=/tmp/ts-fake-cluster/hosts.toml
+#   export GPU_SPOOLER_CONFIG=/tmp/ts-fake-cluster/hosts.toml
 set -euo pipefail
 
 D="${TS_FAKE_CLUSTER:-/tmp/ts-fake-cluster}"
@@ -186,7 +186,7 @@ cmd_up() {
   for h in $HOSTS; do stop_host "$h"; start_host "$h"; done
   sleep 0.5
   cmd_status
-  echo "export TASK_SPOOLER_CONFIG=$D/hosts.toml"
+  echo "export GPU_SPOOLER_CONFIG=$D/hosts.toml"
 }
 
 cmd_down() {

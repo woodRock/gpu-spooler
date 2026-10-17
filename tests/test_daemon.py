@@ -133,7 +133,7 @@ def test_large_log_syncs_over_several_ticks(ts):
 def test_clear_removes_remote_job_dirs(ts, fake_cluster):
     tid = ts.submit("submit", "-g", "1", "true")
     r = ts.wait_status(tid, "done", 30)
-    jobdir = fake_cluster / "home" / ".task-spooler" / "jobs" / r["job_key"]
+    jobdir = fake_cluster / "home" / ".gpu-spooler" / "jobs" / r["job_key"]
     assert jobdir.is_dir()
     ts.run("clear")
     assert not jobdir.exists()

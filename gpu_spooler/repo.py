@@ -19,7 +19,7 @@ from typing import Optional
 from gpu_spooler.config import Config, Host
 from gpu_spooler.transport import Transport
 
-SYNC_REF = "refs/task-spooler/sync"
+SYNC_REF = "refs/gpu-spooler/sync"
 CHECK_TIMEOUT = 20
 PUSH_TIMEOUT = 600
 
@@ -64,7 +64,7 @@ class LocalRepo:
         if self._snapshot is None:
             commit = ""
             if self.dirty:
-                r = _git(self.root, "stash", "create", "task-spooler sync")
+                r = _git(self.root, "stash", "create", "gpu-spooler sync")
                 commit = r.stdout.strip()
             self._snapshot = commit or self.head or ""
         return self._snapshot

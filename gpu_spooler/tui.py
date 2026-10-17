@@ -1,5 +1,5 @@
 """
-tui - interactive view of the task-spooler queue, logs and GPUs.
+tui - interactive view of the gpu-spooler queue, logs and GPUs.
 
 A front end over gpu_spooler.core, like the `task` CLI: it reads the same
 database and the GPU snapshot the daemon writes, and never runs its own SSH
@@ -466,7 +466,7 @@ if App is not None:
 def main() -> None:
     if App is None:
         sys.exit("tui needs Textual. Install it with:\n"
-                 "  pip install -e '.[tui]'     (from the task-spooler checkout)\n"
+                 "  pip install -e '.[tui]'     (from the gpu-spooler checkout)\n"
                  "or re-run install.sh.")
     try:
         core.get_cfg()

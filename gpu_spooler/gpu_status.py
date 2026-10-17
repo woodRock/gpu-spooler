@@ -2,7 +2,7 @@
 """
 GPU server status checker (also `task gpus`)
 
-Queries every configured host in parallel (see ~/.task-spooler/hosts.toml),
+Queries every configured host in parallel (see ~/.gpu-spooler/hosts.toml),
 runs nvidia-smi, and displays a table showing free/busy GPUs, users, and
 running processes.
 

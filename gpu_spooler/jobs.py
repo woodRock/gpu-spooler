@@ -2,7 +2,7 @@
 Detached jobs.
 
 Each launch attempt gets a job directory on the host that runs it,
-$HOME/.task-spooler/jobs/<job_key>/, holding run.sh, pid, out.log and (once
+$HOME/.gpu-spooler/jobs/<job_key>/, holding run.sh, pid, out.log and (once
 the command exits) rc. Jobs are started in their own session, so they keep
 running when the ssh connection that launched them goes away; the daemon
 polls the directory to sync the log and pick up the exit code.
@@ -16,7 +16,7 @@ from typing import Optional
 
 from gpu_spooler.repo import sh_path
 
-JOBS_DIR = "$HOME/.task-spooler/jobs"
+JOBS_DIR = "$HOME/.gpu-spooler/jobs"
 CHUNK_BYTES = 1048576        # max log bytes fetched per job per poll
 
 
@@ -35,7 +35,7 @@ cat > "$D/run.sh" <<'{eof}'
 D="{JOBS_DIR}/{key}"
 source ~/.bashrc 2>/dev/null || true
 ls {q_wdir} > /dev/null 2>&1
-cd {q_wdir} || {{ echo "task-spooler: cannot cd to "{q_wdir} >&2; echo 1 > "$D/rc.tmp"; mv "$D/rc.tmp" "$D/rc"; exit 1; }}
+cd {q_wdir} || {{ echo "gpu-spooler: cannot cd to "{q_wdir} >&2; echo 1 > "$D/rc.tmp"; mv "$D/rc.tmp" "$D/rc"; exit 1; }}
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES={shlex.quote(gpus)}
 {"sleep 2" if delay else ":"}

@@ -5,6 +5,7 @@ gpu_spooler/__init__.py
 gpu_spooler/config.py
 gpu_spooler/core.py
 gpu_spooler/daemon.py
+gpu_spooler/fetch.py
 gpu_spooler/gpu.py
 gpu_spooler/gpu_status.py
 gpu_spooler/jobs.py
@@ -19,8 +20,10 @@ gpu_spooler.egg-info/entry_points.txt
 gpu_spooler.egg-info/requires.txt
 gpu_spooler.egg-info/top_level.txt
 tests/conftest.py
+tests/test_cli.py
 tests/test_config.py
 tests/test_daemon.py
+tests/test_fetch.py
 tests/test_gpu.py
 tests/test_jobs.py
 tests/test_repo.py

@@ -16,7 +16,7 @@ def sh(script: str, home) -> str:
 
 
 def wait_rc(home, key, timeout=10):
-    rc = home / ".task-spooler" / "jobs" / key / "rc"
+    rc = home / ".gpu-spooler" / "jobs" / key / "rc"
     deadline = time.time() + timeout
     while not rc.exists():
         assert time.time() < deadline, "job did not finish"
@@ -33,7 +33,7 @@ def test_launch_exit_in_subshell_and_quoting(tmp_path):
     pid = jobs.parse_launch(out)
     assert pid
     assert wait_rc(tmp_path, key) == 3
-    log = (tmp_path / ".task-spooler" / "jobs" / key / "out.log").read_text()
+    log = (tmp_path / ".gpu-spooler" / "jobs" / key / "out.log").read_text()
     assert "gpus=1,2" in log and str(wdir) in log and "TS_EOF_x" in log
 
 
@@ -41,7 +41,7 @@ def test_launch_bad_dir_writes_rc(tmp_path):
     key = jobs.new_job_key(1)
     sh(jobs.launch_script(key, str(tmp_path / "missing"), "", "true", delay=False), tmp_path)
     assert wait_rc(tmp_path, key) == 1
-    assert "cannot cd" in (tmp_path / ".task-spooler/jobs" / key / "out.log").read_text()
+    assert "cannot cd" in (tmp_path / ".gpu-spooler/jobs" / key / "out.log").read_text()
 
 
 def test_status_offsets_and_states(tmp_path):
@@ -59,7 +59,7 @@ def test_status_offsets_and_states(tmp_path):
     assert st[key].state == "gone" and st[key].data == b""
     assert "NOT_RUNNING" in sh(jobs.kill_script(key), tmp_path)
     sh(jobs.cleanup_script([2]), tmp_path)
-    assert not (tmp_path / ".task-spooler/jobs" / key).exists()
+    assert not (tmp_path / ".gpu-spooler/jobs" / key).exists()
 
 
 def test_parse_status_truncated():

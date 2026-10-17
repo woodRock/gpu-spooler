@@ -71,3 +71,25 @@ def test_gpu_status_flags():
     assert (a.hosts, a.workers, a.free, a.detail) == ("ecs", 4, True, True)
     with pytest.raises(SystemExit):
         p.parse_args(["--server", "ecs"])
+
+
+def test_every_command_has_examples_and_they_parse():
+    import shlex
+
+    from gpu_spooler.task import EXAMPLES, _examples
+    p = build_parser()
+    sub = next(a for a in p._actions if isinstance(a, argparse._SubParsersAction))
+    assert set(sub.choices) - {"ls"} == set(EXAMPLES)          # ls is list's alias
+    for name in EXAMPLES:
+        for line in _examples(name).splitlines()[1:]:
+            shown = line.split("  # ")[0].strip()
+            if shown.startswith("id=$("):
+                shown = shown[len("id=$("):-1]
+            tokens, argv = shlex.split(shown) + ["&&"], []
+            for t in tokens:                                    # commands joined by &&
+                if t != "&&":
+                    argv.append(t)
+                    continue
+                assert argv[0] == "task", line
+                p.parse_args(argv[1:])                          # SystemExit on a bad example
+                argv = []
