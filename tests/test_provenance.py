@@ -38,6 +38,10 @@ def test_launch_script_reports_the_commit():
     assert jobs.parse_git("TS_PID 4242\nTS_GIT " + "b" * 40 + " 3\n") == ("b" * 40, 3)
     assert jobs.parse_git("TS_PID 4242\n") is None
     assert jobs.parse_launch("TS_GIT " + "b" * 40 + " 0\nTS_PID 7\n") == 7
+    assert "TS_DIRTY" in script
+    out = "TS_GIT " + "b" * 40 + " 2\nTS_DIRTY results/a.json\nTS_DIRTY figs/x y.png\nTS_PID 7\n"
+    assert jobs.parse_dirty(out) == ["results/a.json", "figs/x y.png"]
+    assert jobs.parse_dirty("TS_PID 7\n") == []
 
 
 def test_config_setting():
@@ -87,6 +91,9 @@ def test_run_ids_and_record_args(tmp_path):
                  ["--commit", "a" * 40, "--dirty-count", "0"], ["--spooler-job", "12"], ["--runner", "gpu-spooler"]):
         i = start.index(pair[0])
         assert start[i:i + len(pair)] == pair
+    dirty = provenance.record_args("start", row | {"git_dirty": 2, "git_dirty_paths": "results/a.json\nfigs/b.png"})
+    i = dirty.index("--dirty-count")
+    assert dirty[i:i + 5] == ["--dirty-count", "2", "--dirty-paths", "results/a.json", "figs/b.png"]
     finish = provenance.record_args("finish", row | {"exit_code": 3, "finished_at": 1760839400.0})
     assert finish[finish.index("--exit-code") + 1] == "3"
     out = repo / "results" / "o.txt"

@@ -105,6 +105,7 @@ _MIGRATIONS = [
     ("gpu_type",    "TEXT"),   # --gpu-type: nvidia-smi model name(s), comma separated
     ("git_commit",  "TEXT"),   # the commit the server ran, captured at launch (run provenance)
     ("git_dirty",   "INTEGER"),  # uncommitted changes there at launch
+    ("git_dirty_paths", "TEXT"),  # which tracked files (newline separated, at most 50)
     ("no_record",   "INTEGER NOT NULL DEFAULT 0"),  # task submit --no-record: not a taura run
 ]
 

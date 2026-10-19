@@ -150,7 +150,7 @@ def record_args(event: str, row, outputs: Optional[list[str]] = None) -> Optiona
         if row["started_at"]:
             args += ["--started", str(row["started_at"])]
         if _field(row, "git_commit"):
-            args += ["--commit", row["git_commit"], "--dirty-count", str(_field(row, "git_dirty") or 0)]
+            args += ["--commit", row["git_commit"], *_dirty_args(row)]
         else:  # the server didn't report its checkout: say so, rather than let taura assume this machine's
             args += ["--commit", "unknown"]
     elif event == "finish":
@@ -159,11 +159,21 @@ def record_args(event: str, row, outputs: Optional[list[str]] = None) -> Optiona
         if row["finished_at"]:
             args += ["--finished", str(row["finished_at"])]
         if _field(row, "git_commit"):
-            args += ["--commit", row["git_commit"], "--dirty-count", str(_field(row, "git_dirty") or 0)]
+            args += ["--commit", row["git_commit"], *_dirty_args(row)]
     elif event == "fetch":
         if not outputs:
             return None
         args += ["--outputs", *[os.path.relpath(os.path.realpath(p), os.path.realpath(repo)) for p in outputs]]
+    return args
+
+
+def _dirty_args(row) -> list[str]:
+    """How many tracked files were changed on the server, and which, so taura can tell an output an
+    earlier job rewrote from an edit to the code."""
+    args = ["--dirty-count", str(_field(row, "git_dirty") or 0)]
+    paths = _field(row, "git_dirty_paths")
+    if paths is not None:
+        args += ["--dirty-paths", *[p for p in paths.split("\n") if p]]
     return args
 
 

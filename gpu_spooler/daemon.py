@@ -457,8 +457,10 @@ class Daemon:
         pid = jobs.parse_launch(out)
         if pid:
             git = jobs.parse_git(out)
-            self.con.execute("UPDATE tasks SET remote_pid=?, git_commit=?, git_dirty=? WHERE id=? AND job_key=?",
-                             (pid, git[0] if git else None, git[1] if git else None, task_id, key))
+            dirty = "\n".join(jobs.parse_dirty(out)) if git else None
+            self.con.execute("UPDATE tasks SET remote_pid=?, git_commit=?, git_dirty=?, git_dirty_paths=? "
+                             "WHERE id=? AND job_key=?",
+                             (pid, git[0] if git else None, git[1] if git else None, dirty, task_id, key))
             self.con.commit()
             self._log(f"Task {task_id} dispatched → {host.name} "
                       f"[CUDA_VISIBLE_DEVICES={gpu_str}]  (job {key}, PGID {pid})")

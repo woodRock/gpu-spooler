@@ -66,7 +66,8 @@ cd "$HOME"
 # The commit the job will run, for run provenance (taura): HEAD and uncommitted changes.
 # git may only be on a login shell's PATH (on ECS it's in /usr/pkg/bin).
 {FIND_GIT}( cd {q_wdir} 2>/dev/null && h=$(git rev-parse -q --verify HEAD 2>/dev/null) \
-  && echo "TS_GIT $h $(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')" )
+  && echo "TS_GIT $h $(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')" \
+  && git status --porcelain --untracked-files=no 2>/dev/null | head -50 | sed 's/^.../TS_DIRTY /' )
 ts_detach bash -l "$D/run.sh" > "$D/out.log" 2>&1 < /dev/null &
 echo $! > "$D/pid"
 echo "TS_PID $!"
@@ -93,6 +94,15 @@ def parse_git(stdout: str) -> Optional[tuple[str, int]]:
             except ValueError:
                 return None
     return None
+
+
+def parse_dirty(stdout: str) -> list[str]:
+    """The changed tracked files the launch script listed (at most 50): taura tells code from outputs."""
+    out = []
+    for line in stdout.splitlines():
+        if line.startswith("TS_DIRTY "):
+            out.append(line[len("TS_DIRTY "):].split(" -> ")[-1].strip().strip('"'))
+    return out
 
 
 def status_script(specs: list[tuple[str, int]]) -> str:
