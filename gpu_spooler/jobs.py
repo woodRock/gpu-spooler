@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from gpu_spooler import provenance
-from gpu_spooler.repo import sh_path
+from gpu_spooler.repo import FIND_GIT, sh_path
 
 JOBS_DIR = "$HOME/.gpu-spooler/jobs"
 CHUNK_BYTES = 1048576        # max log bytes fetched per job per poll
@@ -64,7 +64,8 @@ ts_detach() {{
 }}
 cd "$HOME"
 # The commit the job will run, for run provenance (taura): HEAD and uncommitted changes.
-( cd {q_wdir} 2>/dev/null && h=$(git rev-parse -q --verify HEAD 2>/dev/null) \
+# git may only be on a login shell's PATH (on ECS it's in /usr/pkg/bin).
+{FIND_GIT}( cd {q_wdir} 2>/dev/null && h=$(git rev-parse -q --verify HEAD 2>/dev/null) \
   && echo "TS_GIT $h $(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')" )
 ts_detach bash -l "$D/run.sh" > "$D/out.log" 2>&1 < /dev/null &
 echo $! > "$D/pid"

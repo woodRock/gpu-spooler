@@ -149,6 +149,8 @@ def record_args(event: str, row, outputs: Optional[list[str]] = None) -> Optiona
             args += ["--started", str(row["started_at"])]
         if _field(row, "git_commit"):
             args += ["--commit", row["git_commit"], "--dirty-count", str(_field(row, "git_dirty") or 0)]
+        else:  # the server didn't report its checkout: say so, rather than let taura assume this machine's
+            args += ["--commit", "unknown"]
     elif event == "finish":
         if row["exit_code"] is not None:
             args += ["--exit-code", str(row["exit_code"])]

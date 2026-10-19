@@ -57,6 +57,10 @@ def test_environment_probe_runs_like_the_job(tmp_path):
     run_sh = script.split("cat > \"$D/run.sh\"")[1]
     assert run_sh.index("taura_probe.py") < run_sh.index("( PYTHONPATH=src python3 x.py")
     assert "taura_probe" not in jobs.launch_script("12-abc", "~/repo", "0", "true", delay=False)
+    # git may only be on a login shell's PATH: the commit report must find it like task sync does
+    from gpu_spooler.repo import FIND_GIT
+    launch = jobs.launch_script("12-abc", "~/repo", "0", "true", delay=False)
+    assert launch.index(FIND_GIT.strip()) < launch.index("TS_GIT")
     # the probe itself, run here: one JSON line
     probe = tmp_path / "probe.py"
     probe.write_text(provenance.PROBE)
@@ -91,6 +95,8 @@ def test_run_ids_and_record_args(tmp_path):
     fetch = provenance.record_args("fetch", row, outputs=[str(out)])
     assert fetch[fetch.index("--outputs") + 1:] == ["results/o.txt"]
     assert provenance.record_args("fetch", row, outputs=[]) is None
+    no_commit = provenance.record_args("start", row | {"git_commit": None})
+    assert no_commit[no_commit.index("--commit") + 1] == "unknown"
     # a repo without a taura ledger is left alone
     plain = _git_repo(tmp_path / "plain", ledger=False)
     assert provenance.record_args("start", _row(plain)) is None
