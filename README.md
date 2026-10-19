@@ -15,9 +15,10 @@ Jobs run **detached** on the server. Closing your laptop, losing wifi or restart
 ## Quick Start
 
 ```bash
-git clone https://github.com/woodRock/gpu-spooler.git && cd gpu-spooler
-bash install.sh                  # installs task, gpu-status and tui into ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/woodRock/gpu-spooler/main/install.sh | bash
 ```
+
+This installs `task`, `gpu-status` and `tui` into `~/.local/bin` (see [Installation](#installation)).
 
 On an ECS machine that's all the setup. On a laptop, once:
 
@@ -118,7 +119,20 @@ All SSH traffic goes through a generated config with connection sharing (`Contro
 
 **Requirements:** Python 3.10+, and SSH access to the GPU servers with key-based auth. Off campus, you can use a key or a one-time password on the jump host (see [Working Off Campus](#working-off-campus)).
 
-`bash install.sh` (see [Quick Start](#quick-start)) creates a `.venv` in the project directory, installs the package in editable mode (with the optional [Textual](https://textual.textualize.io) dependency for `tui`), and symlinks `task`, `gpu-status` and `tui` into `~/.local/bin`.
+```sh
+curl -fsSL https://raw.githubusercontent.com/woodRock/gpu-spooler/main/install.sh | bash
+```
+
+This installs `task`, `gpu-status` and `tui` with [uv](https://docs.astral.sh/uv/) as an isolated tool in `~/.local/bin`,
+installing uv first if needed (and Python 3.11 if the machine doesn't have it). No sudo. Add
+`bash -s -- --upgrade` to update to the latest `main`, or `bash -s -- --uninstall` to remove it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/woodRock/gpu-spooler/main/install.sh | bash -s -- --upgrade
+```
+
+For development, from a checkout: `bash install.sh` creates a `.venv` in the checkout, installs the package in editable mode (with the optional [Textual](https://textual.textualize.io) dependency for `tui`), and symlinks the three commands into `~/.local/bin` (`dev/install-dev.sh`). The daemon then runs your checkout's code.
+
 
 There are three commands:
 
