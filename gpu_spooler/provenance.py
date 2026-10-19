@@ -94,8 +94,10 @@ def ledger_repo(row) -> Optional[str]:
 
 
 def enabled(row, setting: str = "auto") -> bool:
-    """Will this task be recorded with taura? (taura installed, repo keeps a ledger, not turned off)"""
-    return setting != "off" and shutil.which("taura") is not None and ledger_repo(row) is not None
+    """Will this task be recorded with taura? (taura installed, repo keeps a ledger, not turned off
+    in hosts.toml or for this task with task submit --no-record)"""
+    return (setting != "off" and not _field(row, "no_record") and shutil.which("taura") is not None
+            and ledger_repo(row) is not None)
 
 
 def probe_command(command: str) -> str:
@@ -168,7 +170,7 @@ def record_args(event: str, row, outputs: Optional[list[str]] = None) -> Optiona
 def notify(event: str, row, setting: str = "auto", outputs: Optional[list[str]] = None,
            log: Callable[[str], None] = lambda msg: None) -> bool:
     """Record a task event with taura, if enabled and available. True if a record was written."""
-    if setting == "off":
+    if setting == "off" or _field(row, "no_record"):
         return False
     exe = shutil.which("taura")
     if exe is None:

@@ -112,6 +112,7 @@ def test_notify_uses_taura_only_when_present_and_enabled(tmp_path, monkeypatch):
     assert provenance.notify("start", _row(repo)) is True
     assert "record 2026-10-19-spooler-12 --event start" in calls.read_text()
     assert provenance.notify("start", _row(repo), setting="off") is False
+    assert provenance.notify("start", _row(repo, no_record=1)) is False  # task submit --no-record
     assert calls.read_text().count("\n") == 1
     # at finish, the environment the job printed goes to taura as --env-json
     log = tmp_path / "12.log"
