@@ -105,6 +105,7 @@ _MIGRATIONS = [
     ("gpu_type",    "TEXT"),   # --gpu-type: nvidia-smi model name(s), comma separated
     ("git_commit",  "TEXT"),   # the commit the server ran, captured at launch (run provenance)
     ("git_dirty",   "INTEGER"),  # uncommitted changes there at launch
+    ("no_record",   "INTEGER NOT NULL DEFAULT 0"),  # task submit --no-record: not a taura run
 ]
 
 # Fields reset when a task goes back to the queue for another attempt.
@@ -428,7 +429,7 @@ def logical_cwd() -> str:
 def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = None,
            host_spec: Optional[str] = None, working_dir: Optional[str] = None,
            start: bool = True, check_repo: bool = True,
-           gpu_type: Optional[str] = None) -> Submitted:
+           gpu_type: Optional[str] = None, no_record: bool = False) -> Submitted:
     """
     Queue a task (and start the daemon unless start=False). When submitted
     from a git repo, the remote copies are checked and any that are missing or
@@ -459,9 +460,9 @@ def submit(command: str, num_gpus: int, min_mem: int = 0, name: Optional[str] = 
     con = db_open()
     cur = con.execute(
         "INSERT INTO tasks (command, num_gpus, min_mem, submitted_at, working_dir, name, "
-        "host_spec, repo_root, gpu_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "host_spec, repo_root, gpu_type, no_record) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (command, num_gpus, min_mem or 0, time.time(), working_dir, name, host_spec or None,
-         local_repo.root if local_repo else None, gpu_type),
+         local_repo.root if local_repo else None, gpu_type, int(no_record)),
     )
     con.commit()
     sub = Submitted(cur.lastrowid, command, working_dir, num_gpus, min_mem or 0, name,
@@ -543,7 +544,7 @@ def resubmit(task_id: int) -> Submitted:
     """Queue a copy of an existing task (same command, resources and directory)."""
     r = get_task(task_id)
     return submit(r["command"], r["num_gpus"], r["min_mem"], r["name"], r["host_spec"],
-                  r["working_dir"], gpu_type=r["gpu_type"])
+                  r["working_dir"], gpu_type=r["gpu_type"], no_record=bool(r["no_record"]))
 
 # ── Killing ───────────────────────────────────────────────────────────────────
 

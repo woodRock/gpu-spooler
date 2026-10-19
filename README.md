@@ -456,6 +456,8 @@ If [taura](https://github.com/woodRock/taura) is installed and the repo keeps a 
 
 taura then links the paper's results and figures to these runs (`taura trace`, `taura tui`) and warns when a result comes from a dirty or failed run, or from code that has changed since. Commands run on your own machine are recorded the same way with `taura run -- python3 train.py ...`.
 
+For a one-off check that isn't an experiment, `task submit --no-record -- ...` skips the record.
+
 taura is never required: without it, or for a repo without a ledger, nothing changes. To turn it off:
 
 ```toml

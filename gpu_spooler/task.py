@@ -114,7 +114,7 @@ def cmd_submit(args) -> None:
         sys.exit("task submit: no command given, e.g.: task submit -- python3 train.py")
     _report_submitted(core.submit(
         core.command_from_argv(args.command), args.gpus, args.min_mem, args.name,
-        args.hosts, args.dir, gpu_type=args.gpu_type), args.quiet)
+        args.hosts, args.dir, gpu_type=args.gpu_type, no_record=args.no_record), args.quiet)
 
 
 def cmd_resubmit(args) -> None:
@@ -635,6 +635,8 @@ def build_parser() -> argparse.ArgumentParser:
     dir_arg(c, "Working directory (default: here; mapped by path_map or remote_root)")
     c.add_argument("-q", "--quiet", action="store_true",
                    help="Print only the task ID (for scripts)")
+    c.add_argument("--no-record", action="store_true",
+                   help="Don't record this task as a taura run (a one-off check, not an experiment)")
     c.add_argument("command", nargs=argparse.REMAINDER, metavar="-- CMD",
                    help="The command; one quoted argument is run as shell code")
 
