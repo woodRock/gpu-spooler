@@ -450,8 +450,9 @@ class Daemon:
 
         # Multi-GPU jobs sleep briefly before starting to reduce the chance of
         # torchrun port collisions when several launch at the same time.
+        probe = provenance.probe_command(row["command"]) if provenance.enabled(row, self.cfg.taura) else None
         script = jobs.launch_script(key, rdir, gpu_str, row["command"],
-                                    delay=len(gpu_indices) > 1)
+                                    delay=len(gpu_indices) > 1, probe=probe)
         rc, out, err = self.transport.run(host, script, timeout=LAUNCH_TIMEOUT)
         pid = jobs.parse_launch(out)
         if pid:

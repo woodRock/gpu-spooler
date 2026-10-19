@@ -14,6 +14,7 @@ import shlex
 from dataclasses import dataclass
 from typing import Optional
 
+from gpu_spooler import provenance
 from gpu_spooler.repo import sh_path
 
 JOBS_DIR = "$HOME/.gpu-spooler/jobs"
@@ -24,14 +25,24 @@ def new_job_key(task_id: int) -> str:
     return f"{task_id}-{secrets.token_hex(3)}"
 
 
-def launch_script(key: str, wdir: str, gpus: str, command: str, delay: bool) -> str:
-    """Script (for `bash -s`) that starts a job detached and prints `TS_PID <pid>`."""
+def launch_script(key: str, wdir: str, gpus: str, command: str, delay: bool,
+                  probe: Optional[str] = None) -> str:
+    """Script (for `bash -s`) that starts a job detached and prints `TS_PID <pid>`.
+
+    probe: when the task is recorded with taura, how to run taura's environment probe like the job's
+    command (e.g. `PYTHONPATH=src python3`); the job then prints a `TAURA_ENV {...}` line first."""
     q_wdir = sh_path(wdir)
     eof = f"TS_EOF_{key.replace('-', '_')}"
+    probe_file = probe_run = ""
+    if probe:
+        peof = f"TS_PROBE_{key.replace('-', '_')}"
+        probe_file = (f'cat > "$D/taura_probe.py" <<\'{peof}\'\n' + provenance.PROBE.strip("\n")
+                      + f"\n{peof}\n")
+        probe_run = f'{probe} "$D/taura_probe.py" 2>/dev/null | sed "s/^/{provenance.ENV_MARK}/" || true\n'
     return f'''\
 D="{JOBS_DIR}/{key}"
 mkdir -p "$D" || exit 1
-cat > "$D/run.sh" <<'{eof}'
+{probe_file}cat > "$D/run.sh" <<'{eof}'
 D="{JOBS_DIR}/{key}"
 source ~/.bashrc 2>/dev/null || true
 ls {q_wdir} > /dev/null 2>&1
@@ -39,7 +50,7 @@ cd {q_wdir} || {{ echo "gpu-spooler: cannot cd to "{q_wdir} >&2; echo 1 > "$D/rc
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES={shlex.quote(gpus)}
 {"sleep 2" if delay else ":"}
-( {command}
+{probe_run}( {command}
 )
 rc=$?
 echo "$rc" > "$D/rc.tmp" && mv "$D/rc.tmp" "$D/rc"
