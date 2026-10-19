@@ -77,6 +77,7 @@ task fetch results --after "$id"               # copy results/ back once the tas
 - [Working Off Campus](#working-off-campus)
 - [Running Your Git Repos from a Laptop](#running-your-git-repos-from-a-laptop)
   - [Fetching Results](#fetching-results)
+  - [Run Provenance (taura)](#run-provenance-taura)
 - [Local Host](#local-host)
 - [GPU Servers](#gpu-servers)
 - [State & Logs](#state--logs)
@@ -442,6 +443,25 @@ task fetch /vol/ecrg-solar/woodj4/run-v3/results:results    # explicit REMOTE:LO
 - Directories are compared by SHA-256 on the server, so only changed files are transferred (one gzipped tar over the usual ssh route).
 
 ---
+
+### Run Provenance (taura)
+
+If [taura](https://github.com/woodRock/taura) is installed and the repo keeps a taura ledger (a `ledger/` directory), every task is also recorded as a taura run in the **local** repo's `ledger/runs/`, with no extra flags:
+
+| When | What the daemon records |
+|------|-------------------------|
+| the task starts | the command, the commit the server actually checked out (a `task sync` of a dirty tree is recorded as dirty, with the commit it was made on), `--config`/`--seed` from the command, host, GPUs, start time |
+| the task ends | exit code and finish time (each retry is its own run: `<date>-spooler-<id>-2`, ...) |
+| `task fetch PATHS --after ID` | the files that came back new or changed, with content hashes |
+
+taura then links the paper's results and figures to these runs (`taura trace`, `taura tui`) and warns when a result comes from a dirty or failed run, or from code that has changed since. Commands run on your own machine are recorded the same way with `taura run -- python3 train.py ...`.
+
+taura is never required: without it, or for a repo without a ledger, nothing changes. To turn it off:
+
+```toml
+[provenance]
+taura = "off"        # default "auto": record when taura is installed and the repo has a ledger
+```
 
 ## Local Host
 

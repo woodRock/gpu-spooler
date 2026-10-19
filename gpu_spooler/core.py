@@ -103,6 +103,8 @@ _MIGRATIONS = [
     ("last_seen",   "REAL"),
     ("repo_root",   "TEXT"),   # local git repo the task was submitted from
     ("gpu_type",    "TEXT"),   # --gpu-type: nvidia-smi model name(s), comma separated
+    ("git_commit",  "TEXT"),   # the commit the server ran, captured at launch (run provenance)
+    ("git_dirty",   "INTEGER"),  # uncommitted changes there at launch
 ]
 
 # Fields reset when a task goes back to the queue for another attempt.
