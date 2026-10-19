@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from gpu_spooler import core, jobs
+from gpu_spooler import core, jobs, provenance
 from gpu_spooler.config import Config, ConfigError, Host, config_path, load_config
 from gpu_spooler.gpu import ServerResult, gpu_type_matches, query_hosts, write_snapshot
 from gpu_spooler.transport import auth_hint
@@ -340,8 +340,16 @@ class Daemon:
         self.con.commit()
         return n > 0
 
+    def _provenance(self, event: str, task_id: int, row=None) -> None:
+        row = row or self.con.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if row is not None and provenance.notify(event, row, self.cfg.taura, log=self._log):
+            self._log(f"Task {task_id}: recorded {event} as taura run {provenance.run_id(row)}.")
+
     def _finish(self, row, rc: Optional[int]) -> None:
         tid, key = row["id"], row["job_key"]
+        # Record this attempt as it ended, before a retry re-queues it (and bumps its attempt number).
+        ended = {**dict(row), "exit_code": rc, "finished_at": time.time()}
+        self._provenance("finish", tid, ended)
         if rc == 0:
             if self._update_running(tid, key, "status='done', exit_code=0, finished_at=?",
                                     (time.time(),)):
@@ -447,11 +455,13 @@ class Daemon:
         rc, out, err = self.transport.run(host, script, timeout=LAUNCH_TIMEOUT)
         pid = jobs.parse_launch(out)
         if pid:
-            self.con.execute("UPDATE tasks SET remote_pid=? WHERE id=? AND job_key=?",
-                             (pid, task_id, key))
+            git = jobs.parse_git(out)
+            self.con.execute("UPDATE tasks SET remote_pid=?, git_commit=?, git_dirty=? WHERE id=? AND job_key=?",
+                             (pid, git[0] if git else None, git[1] if git else None, task_id, key))
             self.con.commit()
             self._log(f"Task {task_id} dispatched → {host.name} "
                       f"[CUDA_VISIBLE_DEVICES={gpu_str}]  (job {key}, PGID {pid})")
+            self._provenance("start", task_id)
             return
         if rc == 124:
             # The job may or may not have started; the status poll will tell.

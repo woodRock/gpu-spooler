@@ -270,6 +270,7 @@ def cmd_sync(args) -> None:
 
 def cmd_fetch(args) -> None:
     from gpu_spooler import fetch
+    done: dict = {}
     if args.after:
         done, _ = core.wait_for(list(dict.fromkeys(args.after)))
         bad = [core.describe_end(r) for r in done.values() if r["status"] != "done"]
@@ -319,8 +320,24 @@ def cmd_fetch(args) -> None:
     if kept_any:
         print(_col("Local files that changed since they were fetched, or that git cannot "
                    "restore, were kept; --force replaces them.", YELLOW))
+    if args.after and not args.dry_run:
+        _record_outputs(cfg, done, res)
     if any(p.kind == "missing" for p in res.plans):
         sys.exit(1)
+
+
+def _record_outputs(cfg, done: dict, res) -> None:
+    """With --after, what this fetch brought back new or changed is those tasks' output: record it
+    with taura (if the repo keeps a taura ledger; see gpu_spooler/provenance.py)."""
+    from gpu_spooler import provenance
+    outputs = []
+    for plan in res.plans:
+        base = plan.item.local if plan.kind == "dir" else None
+        outputs += [os.path.join(base, rel) if base else plan.item.local for rel in plan.new + plan.update]
+    outputs = [p for p in outputs if os.path.isfile(p)]
+    for row in done.values():
+        if provenance.notify("fetch", row, cfg.taura, outputs=outputs, log=lambda m: print(_col(m, YELLOW))):
+            print(f"  Recorded {len(outputs)} output(s) of task {row['id']} as taura run {provenance.run_id(row)}.")
 
 
 def cmd_repo_status(args) -> None:

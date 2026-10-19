@@ -52,6 +52,9 @@ ts_detach() {{
   else exec python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"; fi
 }}
 cd "$HOME"
+# The commit the job will run, for run provenance (taura): HEAD and uncommitted changes.
+( cd {q_wdir} 2>/dev/null && h=$(git rev-parse -q --verify HEAD 2>/dev/null) \
+  && echo "TS_GIT $h $(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')" )
 ts_detach bash -l "$D/run.sh" > "$D/out.log" 2>&1 < /dev/null &
 echo $! > "$D/pid"
 echo "TS_PID $!"
@@ -64,6 +67,18 @@ def parse_launch(stdout: str) -> Optional[int]:
             try:
                 return int(line.split()[1])
             except (IndexError, ValueError):
+                return None
+    return None
+
+
+def parse_git(stdout: str) -> Optional[tuple[str, int]]:
+    """(commit, uncommitted changes) the launch script saw in the working directory, if a git repo."""
+    for line in stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[0] == "TS_GIT":
+            try:
+                return parts[1], int(parts[2])
+            except ValueError:
                 return None
     return None
 

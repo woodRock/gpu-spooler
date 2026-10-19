@@ -123,6 +123,7 @@ class Config:
     mtime: float = 0.0
     builtin: bool = False             # True when no hosts.toml exists
     max_gpus: Optional[int] = None    # [limits] max_gpus: GPUs our tasks may hold at once
+    taura: str = "auto"               # [provenance] taura: auto | off (record tasks as taura runs)
 
     @property
     def source_label(self) -> str:
@@ -288,6 +289,9 @@ def parse_config(data: dict) -> Config:
     host_tables = data.get("hosts", {})
     limits = data.get("limits", {})
     jump_tables = data.get("jumps", {})
+    taura = data.get("provenance", {}).get("taura", "auto")
+    if taura not in ("auto", "off"):
+        raise ConfigError(f"provenance.taura must be auto or off (got '{taura}')")
 
     mode = net.get("mode", "auto")
     if mode not in ("auto", "direct", "jump"):
@@ -393,7 +397,7 @@ def parse_config(data: dict) -> Config:
         raise ConfigError(f"limits.max_gpus must be a positive integer (got {max_gpus!r})")
 
     return Config(
-        hosts=hosts, jumps=jumps, mode=mode, probe=net.get("probe"), max_gpus=max_gpus,
+        hosts=hosts, jumps=jumps, mode=mode, probe=net.get("probe"), max_gpus=max_gpus, taura=taura,
         identity_file=ssh.get("identity_file"),
         control_persist=str(ssh.get("control_persist", "10m")),
         jump_control_persist=str(ssh.get("jump_control_persist", "12h")),
