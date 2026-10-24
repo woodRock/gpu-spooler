@@ -175,3 +175,29 @@ def test_spooler_tasks_become_taura_runs(ts, fake_cluster):
     assert list(run["outputs"]) == ["results/out.txt"]
     env = run["env"]                                                 # reported by the job, not the laptop
     assert env["python"] and env["hash"].startswith("sha256:") and "packages" in env
+
+
+@pytest.mark.integration
+def test_one_fetch_after_two_tasks_records_each_its_own_outputs(ts, fake_cluster):
+    taura = shutil.which("taura")
+    if taura is None:
+        pytest.skip("taura is not installed")
+    import json
+    import tempfile
+    root = Path(tempfile.mkdtemp(prefix="tsp.", dir="/tmp")) / f"proj{int(time.time() * 1000)}"
+    (root / "ledger").mkdir(parents=True)
+    (root / "ledger" / "artifacts.toml").write_text("")
+    (root / "run.sh").write_text('mkdir -p "$1" && sleep 2 && echo "$1" > "$1/summary.csv"\n')
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run([*GIT, "-C", str(root), "add", "."], check=True)
+    subprocess.run([*GIT, "-C", str(root), "commit", "-qm", "init"], check=True)
+
+    ts.run("sync", cwd=str(root))
+    a = ts.submit("submit", "-g", "1", "sh run.sh results/a", cwd=str(root))   # running at once
+    b = ts.submit("submit", "-g", "1", "sh run.sh results/b", cwd=str(root))
+    out = ts.run("fetch", "results", "--after", str(a), str(b), cwd=str(root), timeout=120).stdout
+    assert "Recorded 1 output(s) of task" in out and "could not be told apart" not in out
+
+    rec = subprocess.run([taura, "-C", str(root), "--json", "runs"], capture_output=True, text=True)
+    outputs = {r["spooler_job"]: list(r["outputs"]) for r in json.loads(rec.stdout)["runs"]}
+    assert outputs == {a: ["results/a/summary.csv"], b: ["results/b/summary.csv"]}

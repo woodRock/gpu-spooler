@@ -353,16 +353,27 @@ def cmd_fetch(args) -> None:
 
 def _record_outputs(cfg, done: dict, res) -> None:
     """With --after, what this fetch brought back new or changed is those tasks' output: record it
-    with taura (if the repo keeps a taura ledger; see gpu_spooler/provenance.py)."""
-    from gpu_spooler import provenance
+    with taura (if the repo keeps a taura ledger; see gpu_spooler/provenance.py). With several
+    tasks, each file goes to the task that wrote it (fetch.attribute)."""
+    from gpu_spooler import fetch, provenance
     outputs = []
     for plan in res.plans:
         base = plan.item.local if plan.kind == "dir" else None
         outputs += [os.path.join(base, rel) if base else plan.item.local for rel in plan.new + plan.update]
     outputs = [p for p in outputs if os.path.isfile(p)]
-    for row in done.values():
-        if provenance.notify("fetch", row, cfg.taura, outputs=outputs, log=lambda m: print(_col(m, YELLOW))):
-            print(f"  Recorded {len(outputs)} output(s) of task {row['id']} as taura run {provenance.run_id(row)}.")
+    rows = list(done.values())
+    by_task, shared = fetch.attribute(rows, outputs)
+    if shared:
+        ids = ", ".join(str(r["id"]) for r in rows)
+        print(_col(f"Warning: {len(shared)} file(s) could not be told apart between tasks {ids} "
+                   "(no command names them, and the tasks ran at the same time); recorded on each. "
+                   "Fetch each task's outputs on its own to keep them apart.", YELLOW))
+        for p in shared[:10]:
+            print(f"           {DIM}{os.path.relpath(p)}{RESET}")
+    for row in rows:
+        mine = by_task[row["id"]]
+        if provenance.notify("fetch", row, cfg.taura, outputs=mine, log=lambda m: print(_col(m, YELLOW))):
+            print(f"  Recorded {len(mine)} output(s) of task {row['id']} as taura run {provenance.run_id(row)}.")
 
 
 def cmd_repo_status(args) -> None:

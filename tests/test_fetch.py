@@ -114,6 +114,66 @@ def test_plan_file_into_an_existing_directory(tmp_path):
 
 # ── against the fake cluster ─────────────────────────────────────────────────
 
+# ── which task wrote what ────────────────────────────────────────────────────
+
+def _task(tid, command, wdir, started=1000.0, finished=2000.0):
+    return {"id": tid, "command": command, "working_dir": str(wdir),
+            "started_at": started, "finished_at": finished}
+
+
+def _written(root: Path, rel: str, mtime: float = 1500.0) -> str:
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(rel)
+    os.utime(p, (mtime, mtime))
+    return str(p)
+
+
+def test_attribute_by_the_paths_each_command_names(tmp_path):
+    # tasks 85 and 86 of the red-herring rerun: same time, same script, different --out
+    a = _task(85, "PYTHONPATH=src python3 -m red_herring.experiment --out results/ungrouped", tmp_path)
+    b = _task(86, "PYTHONPATH=src python3 -m red_herring.experiment --groups tissue "
+                  "--out=results/grouped", tmp_path)
+    ua, ga = _written(tmp_path, "results/ungrouped/summary.csv"), _written(tmp_path, "results/grouped/s.csv")
+    by_task, shared = fetch.attribute([a, b], [ua, ga])
+    assert by_task == {85: [ua], 86: [ga]} and shared == []
+
+
+def test_attribute_prefers_the_most_specific_name(tmp_path):
+    a = _task(1, "python3 sweep.py --out results", tmp_path)
+    b = _task(2, "python3 eval.py --out results/eval", tmp_path)
+    top, ev = _written(tmp_path, "results/sweep.csv"), _written(tmp_path, "results/eval/e.csv")
+    by_task, shared = fetch.attribute([a, b], [top, ev])
+    assert by_task == {1: [top], 2: [ev]} and shared == []
+
+
+def test_attribute_falls_back_to_when_each_task_ran(tmp_path):
+    a = _task(1, "python3 train.py", tmp_path, started=1000, finished=2000)
+    b = _task(2, "python3 train.py", tmp_path, started=5000, finished=6000)
+    early = _written(tmp_path, "results/early.txt", mtime=2050)    # within the slack
+    late = _written(tmp_path, "results/late.txt", mtime=5500)
+    by_task, shared = fetch.attribute([a, b], [early, late])
+    assert by_task == {1: [early], 2: [late]} and shared == []
+
+
+def test_attribute_credits_every_task_when_nothing_tells_them_apart(tmp_path):
+    a, b = _task(1, "python3 train.py", tmp_path), _task(2, "python3 train.py", tmp_path)
+    p = _written(tmp_path, "results/out.txt")
+    by_task, shared = fetch.attribute([a, b], [p])
+    assert by_task == {1: [p], 2: [p]} and shared == [p]
+
+
+def test_attribute_one_task_gets_everything(tmp_path):
+    # `.` and the working dir name every file, so they don't count as naming one
+    a = _task(7, "cd . && python3 train.py --data /", tmp_path, started=None, finished=None)
+    p = _written(tmp_path, "results/out.txt", mtime=9e9)
+    assert fetch.attribute([a], [p]) == ({7: [p]}, [])
+    named = fetch._named_paths(a)
+    assert str(tmp_path / "train.py") in named
+    assert str(tmp_path) not in named and "/" not in named
+    assert fetch._named_paths(_task(8, "python3 'unbalanced", tmp_path))   # not shell-parsable
+
+
 @pytest.mark.integration
 def test_fetch_workflow(ts, fake_cluster):
     root = _repo({"sub/run.py": "print(1)\n", "results/r.txt": "committed\n"})

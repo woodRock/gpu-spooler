@@ -21,6 +21,7 @@ import base64
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -324,6 +325,67 @@ def _transfer(transport: Transport, host: Host, plan: Plan) -> list[str]:
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return skipped
+
+
+# ── Which task wrote what (task fetch --after A B ...) ─────────────────────────
+
+WRITE_SLACK = 120   # seconds around a task's run: clock skew and the daemon's 5 s polls
+
+
+def _named_paths(row) -> list[str]:
+    """
+    Local paths the task's command names, as an argument or a --flag=value, resolved from its
+    working directory. The working directory and anything above it are left out: they name
+    every file.
+    """
+    try:
+        words = shlex.split(row["command"])
+    except ValueError:
+        words = row["command"].split()
+    wdir = row["working_dir"]
+    out = []
+    for w in words:
+        value = w.split("=", 1)[1] if "=" in w else w
+        if not value or value.startswith("-"):
+            continue
+        p = os.path.normpath(os.path.join(wdir, os.path.expanduser(value)))
+        if not _inside(wdir, p):
+            out.append(p)
+    return out
+
+
+def _depth_named(row, path: str) -> int:
+    """How deep the command names path (its own name or a directory above it); -1 if it doesn't."""
+    return max((len(p.split(os.sep)) for p in _named_paths(row) if _inside(path, p)), default=-1)
+
+
+def _ran_when_written(row, path: str) -> bool:
+    if not row["started_at"] or not row["finished_at"]:
+        return False
+    mtime = os.lstat(path).st_mtime   # the server's: the tar extraction keeps it
+    return row["started_at"] - WRITE_SLACK <= mtime <= row["finished_at"] + WRITE_SLACK
+
+
+def attribute(rows: list, paths: list[str]) -> tuple[dict[int, list[str]], list[str]]:
+    """
+    Credit each fetched file to the tasks that wrote it: the tasks whose command names it most
+    specifically (`--out results/a` names results/a/x.csv), then, if that leaves more than one,
+    those that were running when it was written. Returns ({task id: paths}, the paths still
+    credited to more than one task). With one task, it gets everything.
+    """
+    by_task: dict[int, list[str]] = {r["id"]: [] for r in rows}
+    shared = []
+    for path in paths:
+        depth = {r["id"]: _depth_named(r, path) for r in rows}
+        deepest = max(depth.values(), default=-1)
+        cands = [r for r in rows if depth[r["id"]] == deepest]
+        if len(cands) > 1:
+            cands = [r for r in cands if _ran_when_written(r, path)] or cands
+        if len(cands) > 1:
+            shared.append(path)
+        for r in cands:
+            by_task[r["id"]].append(path)
+    return by_task, shared
 
 
 @dataclass
