@@ -391,6 +391,16 @@ cpu_slots = 2
 - **`path_map`** translates the working directory when a job runs on that host, using the longest matching prefix. For example, `~/code/proj` on your laptop becomes `/vol/ecrg-solar/woodj4/proj` on ECS. The spooler doesn't copy code. It only translates the path, so the code needs to exist at the remote path.
 - **Jump chain** entries are either `user@host[:port]` or the name of a `[hosts.X]` entry.
 - From the config, the spooler generates `~/.gpu-spooler/ssh_config.direct` and `ssh_config.jump`, and calls `ssh -F <file>`. Your own `~/.ssh/config` is included last, so settings such as keys and agents still apply.
+- **`[detective]`** (optional, off by default) reads gpu-detective's history to find GPUs held but idle: processes on them, under 5% utilisation in every sweep for `idle_minutes` (default 30).
+  - `task gpus` marks those GPUs `IDLE` with how long they've been idle, and adds a count to the totals. A GPU is only marked if the live query agrees.
+  - `task list` flags your own running tasks whose GPUs are all idle, since they still count against `max_gpus`.
+  - Placement doesn't change: a GPU with a process on it is never treated as free anyway.
+  - The history is opened read-only (`~/.gpu-detective/history.db` by default, or set `history = "..."` or `GPU_DETECTIVE_DB`). gpu-spooler doesn't import gpu-detective.
+
+  ```toml
+  [detective]
+  idle_minutes = 30
+  ```
 
 ---
 

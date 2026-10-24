@@ -124,10 +124,16 @@ class Config:
     builtin: bool = False             # True when no hosts.toml exists
     max_gpus: Optional[int] = None    # [limits] max_gpus: GPUs our tasks may hold at once
     taura: str = "auto"               # [provenance] taura: auto | off (record tasks as taura runs)
+    detective_history: Optional[str] = None   # [detective]: gpu-detective's history.db; None = off
+    idle_minutes: int = 30                     # [detective] idle_minutes: flag GPUs idle this long
 
     @property
     def source_label(self) -> str:
         return "built-in default" if self.builtin else str(self.source)
+
+    def detective_path(self) -> Optional[Path]:
+        """gpu-detective's history database, when [detective] is enabled."""
+        return Path(self.detective_history).expanduser() if self.detective_history else None
 
     def workers(self) -> list[Host]:
         return [h for h in self.hosts.values() if h.enabled and h.role == "worker"]
@@ -290,6 +296,7 @@ def parse_config(data: dict) -> Config:
     limits = data.get("limits", {})
     jump_tables = data.get("jumps", {})
     taura = data.get("provenance", {}).get("taura", "auto")
+    detective = data.get("detective")
     if taura not in ("auto", "off"):
         raise ConfigError(f"provenance.taura must be auto or off (got '{taura}')")
 
@@ -396,8 +403,21 @@ def parse_config(data: dict) -> Config:
                                  or max_gpus < 1):
         raise ConfigError(f"limits.max_gpus must be a positive integer (got {max_gpus!r})")
 
+    history, idle_minutes = None, 30
+    if detective is not None:
+        unknown = set(detective) - {"enabled", "history", "idle_minutes"}
+        if unknown:
+            raise ConfigError(f"detective: unknown key(s) {sorted(unknown)}")
+        idle_minutes = detective.get("idle_minutes", 30)
+        if isinstance(idle_minutes, bool) or not isinstance(idle_minutes, int) or idle_minutes < 1:
+            raise ConfigError(f"detective.idle_minutes must be a positive integer (got {idle_minutes!r})")
+        if detective.get("enabled", True):
+            history = str(detective.get("history") or os.environ.get("GPU_DETECTIVE_DB")
+                          or "~/.gpu-detective/history.db")
+
     return Config(
         hosts=hosts, jumps=jumps, mode=mode, probe=net.get("probe"), max_gpus=max_gpus, taura=taura,
+        detective_history=history, idle_minutes=idle_minutes,
         identity_file=ssh.get("identity_file"),
         control_persist=str(ssh.get("control_persist", "10m")),
         jump_control_persist=str(ssh.get("jump_control_persist", "12h")),
@@ -437,6 +457,13 @@ mode = "auto"
 # At most this many GPUs in use by your tasks at once, across all hosts (queued
 # tasks wait). Leave unset for no limit.
 # max_gpus = 5
+
+# Show GPUs held but idle in `task gpus` and flag your idle tasks in `task list`,
+# from gpu-detective's history (run `detective watch` somewhere that shares
+# this home directory). Uncomment to turn on.
+# [detective]
+# history = "~/.gpu-detective/history.db"   # default; GPU_DETECTIVE_DB also works
+# idle_minutes = 30                         # under 5% utilisation for this long
 
 [ssh]
 # identity_file = "~/.ssh/id_ed25519"
