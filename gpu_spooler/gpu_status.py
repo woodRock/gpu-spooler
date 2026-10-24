@@ -12,9 +12,11 @@ Usage:
 
 import argparse
 import sys
+from typing import Optional
 
 from gpu_spooler.config import Config, ConfigError, load_config
 from gpu_spooler.gpu import GpuProcess, ServerResult, gpu_model, gpu_type_matches, query_host
+from gpu_spooler.idle import IDLE_UTIL_PCT, IdleGpu, fmt_idle, idle_gpus
 from gpu_spooler.transport import Transport
 
 # ---------------------------------------------------------------------------
@@ -62,9 +64,18 @@ def label_mismatches(results: list[ServerResult], cfg: Config) -> list[tuple[str
     return out
 
 
-def print_summary_table(results: list[ServerResult], cfg: Config, free_only: bool = False) -> None:
+Idle = dict[tuple[str, int], IdleGpu]
+
+
+def held_idle(idle: Optional[Idle], host: str) -> int:
+    return sum(1 for h, _ in (idle or {}) if h == host)
+
+
+def print_summary_table(results: list[ServerResult], cfg: Config, free_only: bool = False,
+                        idle: Optional[Idle] = None) -> None:
     """One row per server. GPU TYPE is what nvidia-smi reports (the configured gpu_type
-    only for hosts that reported no GPUs); * marks a configured gpu_type that disagrees."""
+    only for hosts that reported no GPUs); * marks a configured gpu_type that disagrees.
+    With gpu-detective's history (`idle`), hosts with GPUs held but idle say how many."""
     mismatched = {h for h, _, _ in label_mismatches(results, cfg)}
     header = (
         f"{'SERVER':<14} {'GPU TYPE':<24} {'GPUs':>4}  {'FREE':>4}  "
@@ -109,6 +120,9 @@ def print_summary_table(results: list[ServerResult], cfg: Config, free_only: boo
             f"{colorize(u, CYAN)}: {', '.join(sorted(cmds))}"
             for u, cmds in sorted(user_procs.items())
         ) or colorize("idle", DIM)
+        n_idle = held_idle(idle, r.name)
+        if n_idle:
+            who = colorize(f"[{n_idle} held idle] ", YELLOW) + who
 
         vram_free  = f"{mb_to_gb(r.free_vram_mb):>5} GB"
         vram_total = f"{mb_to_gb(r.total_vram_mb):>5} GB"
@@ -134,8 +148,9 @@ def print_label_warnings(results: list[ServerResult], cfg: Config) -> None:
                    "these gpu_type (and gpu_mem_gb/num_gpus) entries.", YELLOW))
 
 
-def print_detail_table(results: list[ServerResult], free_only: bool = False) -> None:
-    """One row per GPU."""
+def print_detail_table(results: list[ServerResult], free_only: bool = False,
+                       idle: Optional[Idle] = None) -> None:
+    """One row per GPU. GPUs held but idle (from gpu-detective's history) are marked IDLE."""
     header = (
         f"{'SERVER':<14} {'GPU':>3}  {'GPU NAME':<24}  "
         f"{'MEM USED':>9}  {'MEM TOT':>7}  {'UTIL':>5}  "
@@ -168,7 +183,8 @@ def print_detail_table(results: list[ServerResult], free_only: bool = False) -> 
                     f"{status:<16}  {user_col:<12}  {proc_col}"
                 )
             else:
-                status = colorize("IN USE", RED)
+                ig = (idle or {}).get((r.name, g.index))
+                status = colorize("IDLE", YELLOW) if ig else colorize("IN USE", RED)
                 # Print one line per process (first process on same row as GPU)
                 procs = g.processes if g.processes else [GpuProcess(0, "?", 0, "?")]
                 first = True
@@ -178,6 +194,7 @@ def print_detail_table(results: list[ServerResult], free_only: bool = False) -> 
                             f"{r.name:<14} {g.index:>3}  {gpu_model(g.name):<24}  "
                             f"{mem_used_str:>9}  {mem_tot_str:>7}  {util_str:>5}  "
                             f"{status:<16}  {colorize(p.user, CYAN):<20}  {p.command}"
+                            + (colorize(f"  ({fmt_idle(ig)})", YELLOW) if ig else "")
                         )
                         first = False
                     else:
@@ -190,7 +207,8 @@ def print_detail_table(results: list[ServerResult], free_only: bool = False) -> 
     print(sep)
 
 
-def print_totals(results: list[ServerResult]) -> None:
+def print_totals(results: list[ServerResult], idle: Optional[Idle] = None,
+                 idle_minutes: int = 0) -> None:
     reachable = [r for r in results if r.reachable]
     total_gpus  = sum(r.total_gpus for r in reachable)
     free_gpus   = sum(r.free_gpus  for r in reachable)
@@ -202,7 +220,10 @@ def print_totals(results: list[ServerResult]) -> None:
         f"\n{BOLD}Totals:{RESET}  "
         f"{colorize(str(free_gpus), GREEN)} / {total_gpus} GPUs free  |  "
         f"{mb_to_gb(free_vram)} / {mb_to_gb(total_vram)} GB VRAM free  |  "
-        f"{colorize(str(unreachable), RED) if unreachable else colorize('0', GREEN)} servers unreachable\n"
+        f"{colorize(str(unreachable), RED) if unreachable else colorize('0', GREEN)} servers unreachable"
+        + (f"  |  {colorize(str(len(idle)), YELLOW if idle else GREEN)} GPUs held idle "
+           f"{idle_minutes}m+ (gpu-detective)" if idle is not None else "")
+        + "\n"
     )
 
 # ---------------------------------------------------------------------------
@@ -253,14 +274,41 @@ def run(args: argparse.Namespace) -> None:
         return r
 
     results = list(transport.fan_out(targets, query_one, workers=args.workers).values())
+    idle = confirm_idle(load_idle(cfg), results)
 
     if args.detail:
-        print_detail_table(results, free_only=args.free)
+        print_detail_table(results, free_only=args.free, idle=idle)
         print_label_warnings(results, cfg)
     else:
-        print_summary_table(results, cfg, free_only=args.free)
+        print_summary_table(results, cfg, free_only=args.free, idle=idle)
 
-    print_totals(results)
+    print_totals(results, idle, cfg.idle_minutes)
+
+
+def confirm_idle(idle: Optional[Idle], results: list[ServerResult]) -> Optional[Idle]:
+    """Keep only what this query agrees with: the history can be a sweep behind, and a
+    GPU that is busy again, or held by someone else, now is not idle."""
+    if idle is None:
+        return None
+    live = {(r.name, g.index): g for r in results if r.reachable for g in r.gpus}
+    out = {}
+    for key, ig in idle.items():
+        g = live.get(key)
+        if g is not None and 0 <= g.utilization_pct < IDLE_UTIL_PCT and \
+                sorted({p.user for p in g.processes}) == ig.users:
+            out[key] = ig
+    return out
+
+
+def load_idle(cfg: Config) -> Optional[Idle]:
+    """Idle-held GPUs from gpu-detective's history; None when [detective] is off."""
+    path = cfg.detective_path()
+    if path is None:
+        return None
+    if not path.exists():
+        print(colorize(f"[detective] is on but {path} doesn't exist: run `detective watch`.", YELLOW))
+        return None
+    return idle_gpus(path, cfg.idle_minutes * 60)
 
 
 if __name__ == "__main__":

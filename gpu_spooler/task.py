@@ -53,6 +53,7 @@ from gpu_spooler import core
 from gpu_spooler.config import ConfigError, config_path, config_template
 from gpu_spooler.core import fmt_duration, fmt_ts, get_cfg, get_transport, truncate
 from gpu_spooler.gpu import query_hosts
+from gpu_spooler.idle import fmt_idle
 from gpu_spooler.transport import auth_hint
 
 # ── CLI helpers ───────────────────────────────────────────────────────────────
@@ -136,6 +137,7 @@ def cmd_list(args) -> None:
     print(f"\n{BOLD}{hdr}{RESET}")
     print(sep)
 
+    idle = idle_tasks(rows)
     for r in reversed(rows):
         status  = r["status"]
         color   = STATUS_COLOR.get(status, "")
@@ -148,9 +150,14 @@ def cmd_list(args) -> None:
             f"{r['id']:>4}  {_col(f'{status:10}', color)}  {r['num_gpus']:>1}  "
             f"{spec:<10}  {server:<14}  {gpus:>4}  {fmt_ts(r['submitted_at']):11}  "
             f"{fmt_duration(core.runtime(r)):>8}  {label}"
+            + (_col(f"  ⚠ {idle[r['id']]}", YELLOW) if r["id"] in idle else "")
         )
 
     print(sep)
+    if idle:
+        print(_col(f"{len(idle)} running task(s) have held their GPUs under 5% utilisation for "
+                   f"{get_cfg().idle_minutes}m+ (gpu-detective). They still count against max_gpus.",
+                   YELLOW))
     shown = len(rows)
     counts = core.task_counts(con)
     daemon_str = (
@@ -170,6 +177,24 @@ def cmd_list(args) -> None:
         f"daemon: {daemon_str}  "
         f"network: {get_transport().describe_mode(probe=False)}\n"
     )
+
+
+def idle_tasks(rows) -> dict[int, str]:
+    """Running tasks whose every GPU gpu-detective has seen held idle: id → 'idle 1h05m'."""
+    from gpu_spooler.gpu_status import load_idle
+    if not any(r["status"] == "running" and r["gpu_indices"] for r in rows):
+        return {}
+    idle = load_idle(get_cfg())
+    if not idle:
+        return {}
+    out = {}
+    for r in rows:
+        if r["status"] != "running" or not r["gpu_indices"]:
+            continue
+        gs = [idle.get((r["server"], int(i))) for i in r["gpu_indices"].split(",") if i.strip().isdigit()]
+        if gs and all(gs):
+            out[r["id"]] = fmt_idle(min(gs, key=lambda g: g.idle_seconds))
+    return out
 
 
 def cmd_info(args) -> None:
