@@ -1,0 +1,95 @@
+name: Release
+
+# On a v* tag: build `task` for each platform and publish them as a GitHub release, which
+# install.sh downloads (releases/latest/download/gpu-spooler-<target>.tar.gz). On a pull request
+# that changes this file, or by hand: build and smoke-test only, publish nothing.
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: [".github/workflows/release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Pinned, so a new compiler or lint can't break a release.
+  RUST_TOOLCHAIN: "1.99.1"
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, zig: true, run: true }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-latest, zig: true, run: false }
+          - { target: aarch64-apple-darwin, os: macos-latest, zig: false, run: true }
+          - { target: x86_64-apple-darwin, os: macos-latest, zig: false, run: true }   # under Rosetta
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install zig and cargo-zigbuild (static Linux builds)
+        if: matrix.zig
+        run: |
+          python3 -m pip install --quiet ziglang
+          cargo install --locked cargo-zigbuild
+      - name: Build
+        run: |
+          if [ "${{ matrix.zig }}" = true ]; then build=zigbuild; else build=build; fi
+          cargo $build --release --locked -p gpu-spooler-cli --target ${{ matrix.target }}
+      - name: Check the binary
+        run: |
+          bin=target/${{ matrix.target }}/release/task
+          file "$bin"
+          case "${{ matrix.target }}" in
+            *linux-musl) file "$bin" | grep -q "statically linked" ;;
+          esac
+          if [ "${{ matrix.run }}" = true ]; then
+            "$bin" -V | grep -qx "task $(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+            HOME="$(mktemp -d)" "$bin" list | grep -q "No tasks."
+            HOME="$(mktemp -d)" "$bin" config path
+          fi
+      - name: Package
+        run: |
+          name=gpu-spooler-${{ matrix.target }}.tar.gz
+          mkdir -p dist
+          tar -C target/${{ matrix.target }}/release -czf "dist/$name" task
+          (cd dist && shasum -a 256 "$name" > "$name.sha256" && cat "$name.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gpu-spooler-${{ matrix.target }}
+          path: dist/*
+
+  publish:
+    name: Publish the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches the version in Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          test "${GITHUB_REF_NAME}" = "v${version}" || { echo "tag ${GITHUB_REF_NAME} but Cargo.toml says ${version}"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l dist
+          gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" \
+            --notes "Install or upgrade: \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | bash\`"
