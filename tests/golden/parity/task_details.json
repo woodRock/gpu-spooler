@@ -1,0 +1,650 @@
+[
+ {
+  "name": "setup",
+  "input": {
+   "config": "\n[hosts.cuda01]\ngpu_type = \"RTX A5000\"\ngpu_mem_gb = 24\n[hosts.cuda05]\ngpu_mem_gb = 47.5\n[hosts.cuda06]\n[hosts.local]\nkind = \"local\"\ncpu_slots = 2\n",
+   "snapshot": {
+    "ts": 1761400000.0,
+    "mode": "direct",
+    "hosts": {
+     "cuda02": {
+      "name": "cuda02",
+      "reachable": true,
+      "error": "",
+      "ts": 1761400000.0,
+      "gpus": [
+       {
+        "index": 0,
+        "name": "NVIDIA A40",
+        "mem_used_mb": 1,
+        "mem_free_mb": 1,
+        "mem_total_mb": 2,
+        "utilization_pct": 0,
+        "processes": []
+       },
+       {
+        "index": 1,
+        "name": "NVIDIA L4",
+        "mem_used_mb": 1,
+        "mem_free_mb": 1,
+        "mem_total_mb": 2,
+        "utilization_pct": 0,
+        "processes": []
+       },
+       {
+        "index": 2,
+        "name": "NVIDIA A40",
+        "mem_used_mb": 1,
+        "mem_free_mb": 1,
+        "mem_total_mb": 2,
+        "utilization_pct": 0,
+        "processes": []
+       }
+      ]
+     }
+    }
+   }
+  },
+  "output": null
+ },
+ {
+  "name": "queued_minimal",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "queued",
+   "server": null,
+   "gpu_indices": null,
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": null,
+   "finished_at": null,
+   "exit_code": null,
+   "log_file": null,
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 0,
+   "job_key": null,
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": null,
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "queued"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ]
+  ]
+ },
+ {
+  "name": "queued_cpu_everything",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 0,
+   "min_mem": 40,
+   "status": "queued",
+   "server": null,
+   "gpu_indices": null,
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": null,
+   "finished_at": null,
+   "exit_code": null,
+   "log_file": null,
+   "working_dir": "/work/proj/sub",
+   "name": "plots",
+   "retry_count": 0,
+   "job_key": null,
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": "local",
+   "remote_dir": "/vol/me/proj/sub",
+   "last_seen": null,
+   "repo_root": "/work/proj",
+   "gpu_type": "A40",
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "queued"
+   ],
+   [
+    "Label",
+    "plots"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "none (CPU job)"
+   ],
+   [
+    "GPU type",
+    "A40"
+   ],
+   [
+    "Min VRAM",
+    "40 GB"
+   ],
+   [
+    "Hosts",
+    "local"
+   ],
+   [
+    "Working dir",
+    "/work/proj/sub"
+   ],
+   [
+    "Git repo",
+    "/work/proj"
+   ],
+   [
+    "Remote dir",
+    "/vol/me/proj/sub"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ]
+  ]
+ },
+ {
+  "name": "done_snapshot_models",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "done",
+   "server": "cuda02",
+   "gpu_indices": "0,2",
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": 1761400010.0,
+   "finished_at": 1761400231.9,
+   "exit_code": 0,
+   "log_file": "{HOME}/.gpu-spooler/logs/12.log",
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 2,
+   "job_key": "12-a1b2c3",
+   "remote_pid": 4242,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": "/vol/me/proj",
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "done"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ],
+   [
+    "Server",
+    "cuda02  (A40)"
+   ],
+   [
+    "GPU indices",
+    "0,2"
+   ],
+   [
+    "Job",
+    "~/.gpu-spooler/jobs/12-a1b2c3  (PGID 4242)"
+   ],
+   [
+    "Started",
+    "10-25 13:46"
+   ],
+   [
+    "Finished",
+    "10-25 13:50"
+   ],
+   [
+    "Runtime",
+    "3m 41s"
+   ],
+   [
+    "Exit code",
+    "0"
+   ],
+   [
+    "Retries",
+    "2/3"
+   ],
+   [
+    "Log file",
+    "{HOME}/.gpu-spooler/logs/12.log"
+   ]
+  ]
+ },
+ {
+  "name": "done_all_models",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "done",
+   "server": "cuda02",
+   "gpu_indices": " , x",
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": 1761400010.0,
+   "finished_at": 1761400011.0,
+   "exit_code": 0,
+   "log_file": null,
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 0,
+   "job_key": null,
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": null,
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "done"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ],
+   [
+    "Server",
+    "cuda02  (A40, L4)"
+   ],
+   [
+    "GPU indices",
+    " , x"
+   ],
+   [
+    "Started",
+    "10-25 13:46"
+   ],
+   [
+    "Finished",
+    "10-25 13:46"
+   ],
+   [
+    "Runtime",
+    "1s"
+   ],
+   [
+    "Exit code",
+    "0"
+   ]
+  ]
+ },
+ {
+  "name": "failed_configured_type",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "failed",
+   "server": "cuda01",
+   "gpu_indices": "1",
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": 1761400010.0,
+   "finished_at": 1761407300.0,
+   "exit_code": 3,
+   "log_file": null,
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 0,
+   "job_key": "12-ffffff",
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": null,
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "failed"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ],
+   [
+    "Server",
+    "cuda01  (RTX A5000  24 GB/GPU, configured)"
+   ],
+   [
+    "GPU indices",
+    "1"
+   ],
+   [
+    "Job",
+    "~/.gpu-spooler/jobs/12-ffffff"
+   ],
+   [
+    "Started",
+    "10-25 13:46"
+   ],
+   [
+    "Finished",
+    "10-25 15:48"
+   ],
+   [
+    "Runtime",
+    "2h 01m"
+   ],
+   [
+    "Exit code",
+    "3"
+   ]
+  ]
+ },
+ {
+  "name": "configured_mem_only",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "killed",
+   "server": "cuda05",
+   "gpu_indices": "0",
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": 1761400010.0,
+   "finished_at": 1761400070.0,
+   "exit_code": null,
+   "log_file": null,
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 0,
+   "job_key": null,
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": null,
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "killed"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ],
+   [
+    "Server",
+    "cuda05  (  47.5 GB/GPU, configured)"
+   ],
+   [
+    "GPU indices",
+    "0"
+   ],
+   [
+    "Started",
+    "10-25 13:46"
+   ],
+   [
+    "Finished",
+    "10-25 13:47"
+   ],
+   [
+    "Runtime",
+    "1m 00s"
+   ]
+  ]
+ },
+ {
+  "name": "configured_nothing",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "lost",
+   "server": "cuda06",
+   "gpu_indices": "0",
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": 1761400010.0,
+   "finished_at": 1761400070.0,
+   "exit_code": null,
+   "log_file": null,
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 0,
+   "job_key": null,
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": null,
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "lost"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ],
+   [
+    "Server",
+    "cuda06"
+   ],
+   [
+    "GPU indices",
+    "0"
+   ],
+   [
+    "Started",
+    "10-25 13:46"
+   ],
+   [
+    "Finished",
+    "10-25 13:47"
+   ],
+   [
+    "Runtime",
+    "1m 00s"
+   ]
+  ]
+ },
+ {
+  "name": "unknown_server",
+  "input": {
+   "id": 12,
+   "command": "python3 train.py --epochs 5",
+   "num_gpus": 1,
+   "min_mem": 0,
+   "status": "cancelled",
+   "server": "gone",
+   "gpu_indices": null,
+   "ssh_pid": null,
+   "submitted_at": 1761400000.5,
+   "started_at": null,
+   "finished_at": 1761400070.0,
+   "exit_code": null,
+   "log_file": null,
+   "working_dir": "/vol/me/proj",
+   "name": null,
+   "retry_count": 0,
+   "job_key": null,
+   "remote_pid": null,
+   "log_offset": 0,
+   "host_spec": null,
+   "remote_dir": null,
+   "last_seen": null,
+   "repo_root": null,
+   "gpu_type": null,
+   "git_commit": null,
+   "git_dirty": null,
+   "git_dirty_paths": null,
+   "no_record": 0
+  },
+  "output": [
+   [
+    "Status",
+    "cancelled"
+   ],
+   [
+    "Command",
+    "python3 train.py --epochs 5"
+   ],
+   [
+    "GPUs req",
+    "1"
+   ],
+   [
+    "Working dir",
+    "/vol/me/proj"
+   ],
+   [
+    "Submitted",
+    "10-25 13:46"
+   ],
+   [
+    "Server",
+    "gone"
+   ],
+   [
+    "Finished",
+    "10-25 13:47"
+   ]
+  ]
+ }
+]

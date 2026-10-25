@@ -9,6 +9,8 @@
 //! nvidia-smi query and its parser).
 
 pub mod config;
+pub mod core;
+pub mod db;
 pub mod fmt;
 pub mod gpu;
 pub mod idle;

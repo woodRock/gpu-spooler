@@ -275,3 +275,55 @@ fn server_results_match_python() {
         assert_eq!(got, c.output, "server_result {}", c.name);
     }
 }
+
+// ── core: task details, how tasks end ────────────────────────────────────────
+
+#[test]
+fn task_details_match_python() {
+    use gpu_spooler::core::task_details;
+    use gpu_spooler::db::Task;
+    let home = Home::new();
+    let all = cases("task_details.json");
+    let mut cfg = parse(&home, s(&all[0].input["config"])).unwrap();
+    cfg.source = Some(home.paths().config);
+    let snapshot = &all[0].input["snapshot"];
+    for c in &all[1..] {
+        let t: Task = serde_json::from_value(c.input.clone()).unwrap();
+        let got: Vec<Value> = task_details(&t, Some(&cfg), Some(snapshot), 0.0)
+            .into_iter()
+            .map(|(label, value)| json!([label, value]))
+            .collect();
+        let tz_free =
+            |rows: Vec<Value>| -> Vec<Value> {
+                // fmt_ts is local time; the fixtures are UTC. Compare those rows by label only.
+                rows.into_iter()
+                    .map(|r| {
+                        if ["Submitted", "Started", "Finished"].contains(&s(&r[0])) {
+                            json!([r[0], "<time>"])
+                        } else {
+                            r
+                        }
+                    })
+                    .collect()
+            };
+        assert_eq!(tz_free(got), tz_free(c.output.as_array().unwrap().clone()), "task_details {}", c.name);
+    }
+}
+
+#[test]
+fn wait_outcomes_match_python() {
+    use gpu_spooler::core::{describe_end, wait_exit_code};
+    use gpu_spooler::db::Task;
+    for c in cases("wait_exit_code.json") {
+        let t: Task = serde_json::from_value(c.input.clone()).unwrap();
+        assert_eq!(wait_exit_code(&t) as i64, c.output["code"].as_i64().unwrap(), "code {}", c.name);
+        assert_eq!(describe_end(&t), s(&c.output["describe"]), "describe {}", c.name);
+    }
+}
+
+#[test]
+fn format_g_matches_python() {
+    for c in cases("format_g.json") {
+        assert_eq!(gpu_spooler::py::format_g(c.input.as_f64().unwrap()), s(&c.output), "format_g {}", c.name);
+    }
+}

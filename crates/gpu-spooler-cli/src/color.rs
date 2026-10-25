@@ -11,3 +11,17 @@ pub const DIM: &str = "\x1b[2m";
 pub fn colorize(text: &str, color: &str) -> String {
     format!("{color}{text}{RESET}")
 }
+pub const ORANGE: &str = "\x1b[33m";
+
+/// The colour `task list` and `task info` give a status.
+pub fn status_color(status: &str) -> &'static str {
+    match status {
+        "queued" => DIM,
+        "running" => GREEN,
+        "done" => CYAN,
+        "failed" => RED,
+        "killed" | "cancelled" => YELLOW,
+        "lost" => ORANGE,
+        _ => "",
+    }
+}

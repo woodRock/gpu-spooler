@@ -151,6 +151,41 @@ pub fn head(s: &str, n: usize) -> &str {
     }
 }
 
+/// `format(x, "g")`: six significant digits, trailing zeros dropped, exponent form below 1e-4 and
+/// from 1e6 (`2.5e+10`, `1e-05`).
+pub fn format_g(x: f64) -> String {
+    if x == 0.0 {
+        return "0".into();
+    }
+    if !x.is_finite() {
+        return if x.is_nan() {
+            "nan".into()
+        } else if x > 0.0 {
+            "inf".into()
+        } else {
+            "-inf".into()
+        };
+    }
+    // Round to 6 significant digits first: the exponent is the rounded value's.
+    let sci = format!("{x:.5e}");
+    let (mantissa, exp) = sci.split_once('e').expect("{:e} always has an exponent");
+    let exp: i32 = exp.parse().expect("integer exponent");
+    let trim = |s: String| {
+        if s.contains('.') {
+            s.trim_end_matches('0').trim_end_matches('.').to_string()
+        } else {
+            s
+        }
+    };
+    if !(-4..6).contains(&exp) {
+        let sign = if exp < 0 { '-' } else { '+' };
+        format!("{}e{sign}{:02}", trim(mantissa.to_string()), exp.abs())
+    } else {
+        let decimals = (5 - exp).max(0) as usize;
+        trim(format!("{x:.decimals$}"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
