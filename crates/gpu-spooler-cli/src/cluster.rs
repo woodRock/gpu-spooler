@@ -212,18 +212,22 @@ pub fn config(ctx: &Ctx, args: &ConfigArgs) -> CmdResult {
 }
 
 pub fn daemon(ctx: &Ctx, args: &DaemonArgs) -> CmdResult {
-    if args.action != "status" {
-        return Err(Fail {
-            message: format!(
-                "task daemon {}: not in the Rust port yet; use the Python `task daemon {0}` for now",
-                args.action
-            ),
-            code: 2,
-        });
-    }
-    match gpu_spooler::core::daemon_pid(&ctx.paths).filter(|p| *p != 0) {
-        Some(pid) => println!("Daemon running (PID {pid}). Logs: {}", ctx.paths.daemon_log().display()),
-        None => println!("Daemon is not running (it starts on the next submit)."),
+    let log = ctx.paths.daemon_log();
+    match args.action.as_str() {
+        "stop" => match gpu_spooler::core::stop_daemon(&ctx.paths) {
+            None => println!("Daemon is not running."),
+            Some(pid) => {
+                println!("Daemon (PID {pid}) stopped. Running jobs keep running and are re-adopted when it restarts.")
+            }
+        },
+        "status" => match gpu_spooler::core::daemon_pid(&ctx.paths).filter(|p| *p != 0) {
+            Some(pid) => println!("Daemon running (PID {pid}). Logs: {}", log.display()),
+            None => println!("Daemon is not running (it starts on the next submit)."),
+        },
+        _ => match gpu_spooler::core::start_daemon(&ctx.paths)? {
+            None => println!("Daemon is already running."),
+            Some(pid) => println!("Daemon started (PID {pid}). Logs: {}", log.display()),
+        },
     }
     Ok(0)
 }

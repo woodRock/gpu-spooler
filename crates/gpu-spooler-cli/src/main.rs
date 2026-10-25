@@ -1,12 +1,12 @@
 //! `task` - the gpu-spooler command line (Rust port, in progress).
 //!
-//! Ported so far: the commands that only read (the queue, logs, hosts, GPUs) plus `config init`,
-//! `ssh`, `connect` and `exec`. Until the rest is, the Python version is the one installed.
+//! Ported so far: the queue, the daemon and the cluster commands. Still Python: sync, fetch, tui.
 
 mod cluster;
 mod color;
 mod ctx;
 mod gpu_status;
+mod queue;
 mod tasks;
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -19,10 +19,14 @@ task - GPU task spooler for SSH-reachable GPU servers (VUW ECS by default)
 The Rust port of gpu-spooler, in progress. Ported so far:
 
 Tasks:
+  task submit [-g N] [OPTIONS] -- CMD     queue CMD (1 GPU unless -g says otherwise)
   task list [-a]                          list tasks (the 200 most recent; -a: all)
   task info ID                            details of a task
   task logs [-f] ID                       print a task's output (-f: follow it)
   task wait ID... [--timeout S]           wait; the exit code says how they ended
+  task kill ID... | --all                 cancel queued / kill running tasks
+  task resubmit ID                        queue a copy of a task
+  task clear [--reset]                    remove finished tasks (--reset: all, IDs from 1)
 
 Cluster:
   task gpus [-d] [-f]                     GPU availability
@@ -30,10 +34,10 @@ Cluster:
   task exec [-H SPEC] -- CMD              run CMD on every (selected) server
   task ssh HOST                           interactive shell on a host
   task connect                            log in to jump hosts once (password/OTP)
-  task daemon status                      is the background daemon running?
+  task daemon start|stop|status           the background daemon
   task config init|path                   the hosts.toml file
 
-Everything else (submit, kill, sync, fetch, the daemon, tui) is still the Python version.";
+Still the Python version: sync, fetch and tui.";
 
 /// Shown at the end of `task COMMAND -h`.
 fn examples(name: &str, rows: &[(&str, &str)]) -> String {
@@ -63,6 +67,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Queue a command to run on a GPU server
+    #[command(after_help = examples("submit", &[
+        ("python3 train.py --epochs 50", "1 GPU on any free server"),
+        ("-g 2 -n \"ablation\" -- ./run.sh --lr 3e-4", "2 GPUs, with a label"),
+        ("-t \"RTX A5000\" -- python3 eval.py", "only on RTX A5000 GPUs"),
+        ("-m 40 -H cuda14,cuda15 -- python3 big.py", "48 GB cards on these hosts"),
+        ("-g 0 -H local -- 'make plots && echo done'", "CPU job; one argument = shell code"),
+        ("id=$(task submit -q -- python3 train.py)", "keep the ID for wait / fetch"),
+    ]))]
+    Submit(queue::SubmitArgs),
+
     /// List tasks
     #[command(visible_alias = "ls", after_help = examples("list", &[("", "the 200 most recent tasks"), ("-a", "every task")]))]
     List(tasks::ListArgs),
@@ -86,6 +101,25 @@ enum Cmd {
         ("12 && task fetch results", "fetch only if the task succeeded"),
     ]))]
     Wait(tasks::WaitArgs),
+
+    /// Cancel queued or kill running tasks
+    #[command(after_help = examples("kill", &[
+        ("12", "cancel it if queued, kill it if running"),
+        ("12 13 14", "several at once"),
+        ("--all", "every queued and running task"),
+    ]))]
+    Kill(queue::KillArgs),
+
+    /// Queue a copy of a task (same command and options)
+    #[command(after_help = examples("resubmit", &[("12", "queue a copy (same command, GPUs, hosts, directory)")]))]
+    Resubmit(queue::ResubmitArgs),
+
+    /// Remove finished tasks, their logs and job directories
+    #[command(after_help = examples("clear", &[
+        ("", "forget finished tasks and delete their logs"),
+        ("--reset", "forget everything and restart IDs at 1"),
+    ]))]
+    Clear(queue::ClearArgs),
 
     /// Show GPU availability across servers
     #[command(after_help = examples("gpus", &[
@@ -114,8 +148,12 @@ enum Cmd {
     #[command(after_help = examples("connect", &[("", "type the jump host's password / OTP once; the daemon reuses it")]))]
     Connect,
 
-    /// Start, stop or check the background daemon (only `status` is ported)
-    #[command(after_help = examples("daemon", &[("status", "is it running?")]))]
+    /// Start, stop or check the background daemon
+    #[command(after_help = examples("daemon", &[
+        ("status", "is it running?"),
+        ("stop", "running jobs keep running"),
+        ("start", "it also starts by itself on submit"),
+    ]))]
     Daemon(cluster::DaemonArgs),
 
     /// Write a hosts.toml template, or show where it is
@@ -124,11 +162,20 @@ enum Cmd {
         ("path", "which config file is in use"),
     ]))]
     Config(cluster::ConfigArgs),
+
+    /// The daemon itself (started by `task daemon start` and submit)
+    #[command(name = "__daemon", hide = true)]
+    RunDaemon,
 }
 
 fn run(cmd: Cmd) -> CmdResult {
     let ctx = Ctx::from_env();
     match cmd {
+        Cmd::Submit(a) => queue::submit(&ctx, &a),
+        Cmd::Kill(a) => queue::kill(&ctx, &a),
+        Cmd::Resubmit(a) => queue::resubmit(&ctx, &a),
+        Cmd::Clear(a) => queue::clear(&ctx, &a),
+        Cmd::RunDaemon => Ok(gpu_spooler::daemon::main(ctx.paths)),
         Cmd::List(a) => tasks::list(&ctx, &a),
         Cmd::Info(a) => tasks::info(&ctx, &a),
         Cmd::Logs(a) => tasks::logs(&ctx, &a),

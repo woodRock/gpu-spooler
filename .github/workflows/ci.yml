@@ -39,7 +39,9 @@ jobs:
       - run: python -m pip install -q -e '.[test]'
       - name: Golden fixtures match the Python implementation
         run: python dev/gen_golden.py --check
-      - name: pytest, with the Rust binary for the parity tests
+      - name: pytest, the Python version
+        run: python -m pytest -q tests
+      - name: pytest, with the Rust binary for every ported command (parity and daemon handover too)
         run: python -m pytest -q tests
         env:
           GPU_SPOOLER_BIN: target/release/task

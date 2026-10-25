@@ -633,7 +633,8 @@ cargo test                                  # Rust tests, including the golden f
 .venv/bin/python dev/gen_golden.py          # regenerate tests/golden/parity/ after changing the Python code
 .venv/bin/python dev/gen_golden.py --check  # CI: are the fixtures current?
 cargo build --release && GPU_SPOOLER_BIN=target/release/task \
-  .venv/bin/python -m pytest tests/test_rust_parity.py   # same commands, same output, on the fake cluster
+  .venv/bin/python -m pytest tests     # the integration tests through the Rust binary, plus parity
+                                       # (same output as Python) and daemon handover tests
 ```
 
-Ported so far: `task gpus`, `list`, `info`, `logs`, `wait`, `hosts`, `exec`, `ssh`, `connect`, `daemon status` and `config init|path`, with the config, ssh transport, GPU query and queue database they use. Try it with `target/release/task list` next to the Python version: these commands only read the queue.
+Ported so far: everything but `sync`, `fetch` and `tui`, including the daemon. The two daemons adopt each other's running jobs, so switching between versions never interrupts a job. Try it with `target/release/task`: `task daemon stop` with one version, then `task daemon start` with the other.

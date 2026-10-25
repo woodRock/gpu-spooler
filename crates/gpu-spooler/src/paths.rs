@@ -55,6 +55,16 @@ impl Paths {
         self.state.join("logs")
     }
 
+    /// Held (flock) by the running Rust daemon, with its PID inside.
+    pub fn lock_file(&self) -> PathBuf {
+        self.state.join("daemon.lock")
+    }
+
+    /// Touched by viewers (tui) to ask the daemon for fresh GPU snapshots.
+    pub fn snapshot_request(&self) -> PathBuf {
+        self.state.join("gpu_snapshot.request")
+    }
+
     /// The latest GPU query from the daemon (read by `task info`, `tui`, submit's checks).
     pub fn snapshot(&self) -> PathBuf {
         self.state.join("gpu_snapshot.json")

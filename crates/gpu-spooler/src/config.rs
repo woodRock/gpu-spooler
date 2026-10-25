@@ -405,7 +405,8 @@ pub fn normpath(path: &str) -> String {
     }
 }
 
-fn abspath(path: &str) -> String {
+/// `os.path.abspath`: absolute (from the process's cwd) and normalised.
+pub fn abspath(path: &str) -> String {
     if path.starts_with('/') {
         normpath(path)
     } else {

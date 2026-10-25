@@ -470,8 +470,7 @@ def gen_snapshot() -> None:
                                  for n, r in res.items()])
 
 
-def gen_daemon() -> None:
-    cfg = C.parse_config(tomllib.loads('''
+DAEMON_TOML = '''
 [groups.g]
 hosts = ["cuda01", "cuda02", "cuda14", "cuda20"]
 [hosts.cuda14]
@@ -479,7 +478,11 @@ gpu_mem_gb = 48
 [hosts.local]
 kind = "local"
 cpu_slots = 2
-'''))
+'''
+
+
+def gen_daemon() -> None:
+    cfg = C.parse_config(tomllib.loads(DAEMON_TOML))
     res = _results()
     running = [{"server": "cuda14", "gpu_indices": "0,1", "num_gpus": 2},
                {"server": "local", "gpu_indices": "", "num_gpus": 0},
@@ -505,7 +508,8 @@ cpu_slots = 2
             out = daemon.assign_tasks(queue, states, cfg, budget)
             rows.append({"name": f"{name}/budget={budget}", "input": {"queue": queue, "budget": budget},
                          "output": {"states": before, "assignments": [list(a) for a in out]}})
-    cases("daemon_assign.json", [{"name": "setup", "input": {"results": {n: asdict(r) for n, r in res.items()},
+    cases("daemon_assign.json", [{"name": "setup", "input": {"config": DAEMON_TOML,
+                                                              "results": {n: asdict(r) for n, r in res.items()},
                                                               "running": running}, "output": None}] + rows)
 
     class Cfg:

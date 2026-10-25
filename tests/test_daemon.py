@@ -172,7 +172,11 @@ def test_daemon_restarts_itself_when_code_changes(ts):
     tid = ts.submit("submit", "-g", "1", "sleep 6; echo survived")
     ts.wait_status(tid, "running", 30)
     pid = int((ts.state / "daemon.pid").read_text())
-    src = Path(__file__).resolve().parent.parent / "gpu_spooler" / "jobs.py"
+    from conftest import RUST_BIN
+    if RUST_BIN:                                      # the Rust daemon watches its binary
+        src = Path(RUST_BIN).resolve()
+    else:
+        src = Path(__file__).resolve().parent.parent / "gpu_spooler" / "jobs.py"
     os.utime(src)                                     # looks like an update
     log = ts.state / "daemon.log"
     deadline = time.time() + 15
@@ -212,7 +216,8 @@ def test_wait_killed_timeout_and_unknown(ts):
     assert ts.row(tid)["status"] == "running"
 
     import signal
-    p = subprocess.Popen([sys.executable, "-m", "gpu_spooler.task", "wait", str(tid)],
+    from conftest import task_argv
+    p = subprocess.Popen(task_argv("wait", str(tid)),
                          env=ts.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     time.sleep(1.5)
     p.send_signal(signal.SIGINT)
