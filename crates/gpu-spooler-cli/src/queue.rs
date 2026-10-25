@@ -124,7 +124,7 @@ pub fn submit(ctx: &Ctx, args: &SubmitArgs) -> CmdResult {
 pub fn resubmit(ctx: &Ctx, args: &ResubmitArgs) -> CmdResult {
     let t = core::get_task(&ctx.db()?, args.id)?;
     core::check_submit(t.num_gpus, &t.command, t.gpu_type.as_deref())?;
-    let sub = core::resubmit(ctx.transport()?, args.id)?;
+    let sub = core::resubmit(ctx.transport()?, args.id, true)?;
     report_submitted(ctx, &sub, args.quiet)
 }
 

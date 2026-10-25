@@ -237,6 +237,33 @@ pub fn task_details(t: &Task, cfg: Option<&Config>, snapshot: Option<&Value>, no
     out
 }
 
+/// The last `max_bytes` of a log (without the partial first line, if cut), and its size, to
+/// continue from with [`read_log_from`].
+pub fn read_log_tail(path: &std::path::Path, max_bytes: u64) -> std::io::Result<(String, u64)> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(path)?;
+    let size = f.seek(SeekFrom::End(0))?;
+    f.seek(SeekFrom::Start(size.saturating_sub(max_bytes)))?;
+    let mut data = Vec::new();
+    f.read_to_end(&mut data)?;
+    let mut text = String::from_utf8_lossy(&data).into_owned();
+    if size > max_bytes {
+        text = text.split_once('\n').map_or(String::new(), |(_, rest)| rest.to_string());
+        // drop the partial first line
+    }
+    Ok((text, size))
+}
+
+/// Log bytes appended since `offset`, and the new offset.
+pub fn read_log_from(path: &std::path::Path, offset: u64) -> std::io::Result<(String, u64)> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(path)?;
+    f.seek(SeekFrom::Start(offset))?;
+    let mut data = Vec::new();
+    f.read_to_end(&mut data)?;
+    Ok((String::from_utf8_lossy(&data).into_owned(), offset + data.len() as u64))
+}
+
 /// PID of the running daemon, or None (as core.daemon_pid: a PID that exists but belongs to
 /// someone else counts as not running).
 pub fn daemon_pid(paths: &Paths) -> Option<i64> {
@@ -480,8 +507,9 @@ pub fn gpu_type_problem(paths: &Paths, gpu_type: &str, candidates: &[String]) ->
     ))
 }
 
-/// Queue a copy of an existing task (same command, resources and directory).
-pub fn resubmit(transport: &Transport, task_id: i64) -> Result<Submitted, TaskError> {
+/// Queue a copy of an existing task (same command, resources and directory); `start`: start the
+/// daemon too, as submit does.
+pub fn resubmit(transport: &Transport, task_id: i64, start: bool) -> Result<Submitted, TaskError> {
     let t = get_task(&db::open(&transport.paths)?, task_id)?;
     submit(
         transport,
@@ -494,7 +522,7 @@ pub fn resubmit(transport: &Transport, task_id: i64) -> Result<Submitted, TaskEr
             working_dir: Some(t.working_dir),
             gpu_type: t.gpu_type,
             no_record: t.no_record != 0,
-            start: true,
+            start,
             check_repo: true,
         },
     )

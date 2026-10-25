@@ -390,3 +390,12 @@ def test_fetch_after_two_tasks_attributes_each_file(clones):
     assert "Warning: 1 file(s) could not be told apart between tasks 1, 2" in py.stdout, py.stdout
     if shutil.which("taura"):
         assert "Recorded 2 output(s) of task 1" in py.stdout and "Recorded 3 output(s) of task 2" in py.stdout, py.stdout
+
+
+# ── step 5: tui ───────────────────────────────────────────────────────────────
+
+def test_tui_refuses_a_broken_config(ts):
+    bad = ts.home / "bad.toml"
+    bad.write_text('[network]\nmode = "sometimes"\n')
+    ts.env["GPU_SPOOLER_CONFIG"] = str(bad)
+    same(*both(ts, "tui"))
