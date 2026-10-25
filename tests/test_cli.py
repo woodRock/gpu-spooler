@@ -1,95 +1,59 @@
-"""The command line: subcommand parsing."""
-import argparse
+"""The `task` binary without a cluster: config init, the built-in config, help and exit codes."""
+import os
+import subprocess
+import tempfile
+from pathlib import Path
 
 import pytest
 
-from gpu_spooler.gpu_status import add_arguments
-from gpu_spooler.task import _strip_dashdash, build_parser, main
+from conftest import task_argv
 
 
-def parse(*argv):
-    return build_parser().parse_args(list(argv))
+@pytest.fixture
+def home():
+    with tempfile.TemporaryDirectory(prefix="tsc.", dir="/tmp") as d:
+        yield Path(d)
 
 
-def test_submit_defaults_and_command():
-    a = parse("submit", "python3", "train.py", "--epochs", "3")
-    assert a.gpus == 1 and a.hosts is None and a.command == ["python3", "train.py", "--epochs", "3"]
-    a = parse("submit", "-g", "0", "-H", "cuda07", "-t", "RTX A5000", "-m", "40", "-n", "x",
-              "-C", "/d", "-q", "--", "./run.sh", "-v")
-    assert (a.gpus, a.hosts, a.gpu_type, a.min_mem, a.name, a.dir, a.quiet) == (
-        0, "cuda07", "RTX A5000", 40, "x", "/d", True)
-    assert _strip_dashdash(a.command) == ["./run.sh", "-v"]
+def task(home: Path, *args: str, **env) -> subprocess.CompletedProcess:
+    e = dict(os.environ, HOME=str(home), **env)
+    e.pop("GPU_SPOOLER_CONFIG", None)
+    e.update(env)
+    return subprocess.run(task_argv(*args), env=e, capture_output=True, text=True, timeout=60)
 
 
-def test_short_flags_mean_the_same_everywhere():
-    """-H is hosts and -C the directory wherever they exist."""
-    p = build_parser()
-    sub = next(a for a in p._actions if isinstance(a, argparse._SubParsersAction))
-    for name, c in sub.choices.items():
-        for act in c._actions:
-            for flag, dest in (("-H", "hosts"), ("-C", "dir"), ("-q", "quiet"), ("-f", None)):
-                if flag in act.option_strings and dest:
-                    assert act.dest == dest, (name, flag)
-            if "-f" in act.option_strings:
-                assert act.dest in ("follow", "free"), name    # follow / gpus --free
+def test_config_init_never_overwrites(home):
+    target = home / "hosts.toml"
+    r = task(home, "config", "init", GPU_SPOOLER_CONFIG=str(target), LOGNAME="someone", USER="someone")
+    assert r.returncode == 0 and target.exists()
+    assert "for user 'someone'" in r.stdout and "--user" in r.stdout           # names the user it used
+    assert 'mode = "auto"' in target.read_text() and 'user = "someone"' in target.read_text()
+    target.write_text("# mine\n")
+    r = task(home, "config", "init", GPU_SPOOLER_CONFIG=str(target))
+    assert r.returncode != 0 and target.read_text() == "# mine\n"
 
 
-def test_other_commands_parse():
-    assert parse("ls", "-a").all
-    assert parse("logs", "-f", "3").follow and parse("logs", "3").id == 3
-    assert parse("wait", "3", "4", "--timeout", "5").ids == [3, 4]
-    assert parse("kill", "1", "2").ids == [1, 2] and parse("kill", "--all").all
-    assert parse("sync", "--check", "-H", "ecs").check
-    f = parse("fetch", "results", "logs", "--after", "3", "--dry-run")
-    assert f.paths == ["results", "logs"] and f.after == [3] and f.dry_run
-    assert parse("daemon", "status").action == "status"
-    with pytest.raises(SystemExit):
-        parse("daemon", "restart")
+def test_config_init_user(home):
+    target = home / "hosts.toml"
+    r = task(home, "config", "init", "-u", "abc1", GPU_SPOOLER_CONFIG=str(target))
+    assert r.returncode == 0
+    text = target.read_text()
+    assert 'user = "abc1"' in text and 'remote_root = "/vol/ecrg-solar/abc1"' in text
+    assert task(home, "config", "path", GPU_SPOOLER_CONFIG=str(target)).stdout.strip() == str(target)
 
 
-def test_kill_needs_ids_or_all(capsys):
-    with pytest.raises(SystemExit, match="IDs or --all"):
-        main(["kill"])
-    with pytest.raises(SystemExit, match="IDs or --all"):
-        main(["kill", "3", "--all"])
+def test_list_with_the_builtin_config(home):
+    r = task(home, "list", GPU_SPOOLER_CONFIG=str(home / "none.toml"))
+    assert r.returncode == 0 and "No tasks." in r.stdout
+    r = task(home, "config", "path", GPU_SPOOLER_CONFIG=str(home / "none.toml"))
+    assert "does not exist; built-in defaults are used" in r.stdout
 
 
-def test_no_arguments_prints_help(capsys):
-    main([])
-    out = capsys.readouterr().out
-    for c in ("submit", "list", "logs", "wait", "kill", "sync", "fetch", "gpus", "exec",
-              "daemon", "config", "tui"):
+def test_help_lists_every_command_and_bad_usage_exits_2(home):
+    out = task(home).stdout
+    for c in ("submit", "list", "logs", "wait", "kill", "sync", "fetch", "gpus", "exec", "daemon", "config", "tui"):
         assert f"task {c}" in out
-
-
-def test_gpu_status_flags():
-    p = argparse.ArgumentParser()
-    add_arguments(p)
-    a = p.parse_args([])
-    assert (a.hosts, a.workers, a.free, a.detail) == (None, 16, False, False)
-    a = p.parse_args(["-H", "ecs", "-f", "-d", "--workers", "4"])
-    assert (a.hosts, a.workers, a.free, a.detail) == ("ecs", 4, True, True)
-    with pytest.raises(SystemExit):
-        p.parse_args(["--server", "ecs"])
-
-
-def test_every_command_has_examples_and_they_parse():
-    import shlex
-
-    from gpu_spooler.task import EXAMPLES, _examples
-    p = build_parser()
-    sub = next(a for a in p._actions if isinstance(a, argparse._SubParsersAction))
-    assert set(sub.choices) - {"ls"} == set(EXAMPLES)          # ls is list's alias
-    for name in EXAMPLES:
-        for line in _examples(name).splitlines()[1:]:
-            shown = line.split("  # ")[0].strip()
-            if shown.startswith("id=$("):
-                shown = shown[len("id=$("):-1]
-            tokens, argv = shlex.split(shown) + ["&&"], []
-            for t in tokens:                                    # commands joined by &&
-                if t != "&&":
-                    argv.append(t)
-                    continue
-                assert argv[0] == "task", line
-                p.parse_args(argv[1:])                          # SystemExit on a bad example
-                argv = []
+    assert task(home, "--version").stdout.startswith("task ")
+    assert task(home, "daemon", "restart").returncode == 2
+    assert task(home, "kill").returncode == 1                                   # IDs or --all
+    assert task(home, "wait", "99").returncode == 1                             # unknown task

@@ -1,24 +1,22 @@
 """
 install.sh, run the way the one-liner runs it (piped into bash), against a fake release folder
 built from the local Rust binary: GPU_SPOOLER_RELEASES points at it, and HOME and the bin
-directory are temporary. Skipped unless GPU_SPOOLER_BIN points at the Rust `task` binary.
+directory are temporary. (The switch-over from a running Python daemon, which needs the Python
+version, was tested before it was removed: see the commit that added this file.)
 """
 
 import hashlib
 import os
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
-import time
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
-BIN = os.environ.get("GPU_SPOOLER_BIN")
-pytestmark = pytest.mark.skipif(not BIN, reason="GPU_SPOOLER_BIN is not set")
+from conftest import BIN
 
 TARGET = {("Darwin", "arm64"): "aarch64-apple-darwin", ("Darwin", "x86_64"): "x86_64-apple-darwin",
           ("Linux", "x86_64"): "x86_64-unknown-linux-musl", ("Linux", "aarch64"): "aarch64-unknown-linux-musl"}[
@@ -43,7 +41,7 @@ class Machine:
         self.bin = self.home / ".local" / "bin"
         self.releases = root / "releases"
         self.home.mkdir()
-        release(self.releases, Path(BIN).resolve())
+        release(self.releases, BIN)
         self.env = dict(os.environ, HOME=str(self.home), GPU_SPOOLER_BIN_DIR=str(self.bin),
                         GPU_SPOOLER_RELEASES=f"file://{self.releases}",
                         PATH=f"{self.bin}:/usr/bin:/bin:/usr/sbin:/sbin")
@@ -72,7 +70,7 @@ def machine():
 
 
 def version() -> str:
-    return subprocess.run([BIN, "--version"], capture_output=True, text=True).stdout.strip()
+    return subprocess.run([str(BIN), "--version"], capture_output=True, text=True).stdout.strip()
 
 
 def test_fresh_install_upgrade_and_uninstall(machine):
@@ -91,7 +89,7 @@ def test_fresh_install_upgrade_and_uninstall(machine):
 
 
 def test_a_bad_checksum_installs_nothing(machine):
-    release(machine.releases, Path(BIN).resolve(), good_sha=False)
+    release(machine.releases, BIN, good_sha=False)
     r = machine.install(check=False)
     assert r.returncode != 0 and "SHA-256 mismatch" in r.stderr
     assert not (machine.bin / "task").exists()
@@ -117,57 +115,20 @@ def test_dry_run_changes_nothing(machine):
 
 
 def python_dev_install(machine) -> None:
-    """What dev/install-dev.sh leaves: links into a checkout's .venv (this one's)."""
+    """What the Python version's dev/install-dev.sh left: links into a checkout's .venv, to entry
+    points that import gpu_spooler (which no longer runs once the checkout has moved on)."""
+    venv = machine.home / "old-checkout" / ".venv" / "bin"
+    venv.mkdir(parents=True)
     machine.bin.mkdir(parents=True, exist_ok=True)
-    for c in ("task", "gpu-status", "tui"):
-        os.symlink(REPO / ".venv" / "bin" / c, machine.bin / c)
+    for c, mod in (("task", "task"), ("gpu-status", "gpu_status"), ("tui", "tui")):
+        (venv / c).write_text(f"#!/nonexistent/python3\nfrom gpu_spooler.{mod} import main\nmain()\n")
+        (venv / c).chmod(0o755)
+        os.symlink(venv / c, machine.bin / c)
 
 
-@pytest.mark.skipif(not (REPO / ".venv" / "bin" / "task").exists(), reason="no Python dev install in this checkout")
 def test_replaces_the_python_dev_install(machine):
     python_dev_install(machine)
     r = machine.install()
     assert not (machine.bin / "task").is_symlink() and machine.task("--version").stdout.strip() == version()
     assert not os.path.lexists(machine.bin / "gpu-status") and not os.path.lexists(machine.bin / "tui")
     assert "now `task gpus`" in r.stdout and "now `task tui`" in r.stdout
-
-
-@pytest.mark.integration
-@pytest.mark.skipif(not (REPO / ".venv" / "bin" / "task").exists(), reason="no Python dev install in this checkout")
-def test_switch_over_keeps_a_running_job(machine, fake_cluster):
-    """The switch-over: a job runs under the Python daemon; install.sh replaces the Python version
-    with the Rust one, which adopts the job and finishes it."""
-    python_dev_install(machine)
-    env = dict(machine.env, GPU_SPOOLER_CONFIG=str(fake_cluster / "hosts.toml"), GPU_SPOOLER_STATUS_INTERVAL="1",
-               PATH=f"{machine.bin}:{os.environ['PATH']}")
-    machine.env = env
-    r = subprocess.run([str(machine.bin / "task"), "submit", "-q", "-g", "0", "-H", "local", "-C", "/tmp", "--",
-                        "for i in 1 2 3 4 5 6 7 8; do echo line$i; sleep 1; done"], env=env, capture_output=True,
-                       text=True, timeout=60)
-    tid = int(r.stdout.strip())
-    state = machine.home / ".gpu-spooler"
-    py_pid = int((state / "daemon.pid").read_text())
-    assert "gpu_spooler.daemon" in subprocess.run(["ps", "-o", "command=", "-p", str(py_pid)],
-                                                  capture_output=True, text=True).stdout
-    import sqlite3
-    status = lambda: sqlite3.connect(state / "tasks.db").execute(
-        "SELECT status FROM tasks WHERE id=?", (tid,)).fetchone()[0]
-    deadline = time.time() + 30
-    while status() != "running":
-        assert time.time() < deadline
-        time.sleep(0.3)
-    time.sleep(2)
-
-    out = machine.install().stdout
-    assert "stopping the daemon" in out and "daemon restarted with the new version" in out
-    rs_pid = int((state / "daemon.pid").read_text())
-    assert rs_pid != py_pid and "__daemon" in subprocess.run(["ps", "-o", "command=", "-p", str(rs_pid)],
-                                                             capture_output=True, text=True).stdout
-    deadline = time.time() + 60
-    while status() not in ("done", "failed", "lost"):
-        assert time.time() < deadline, (state / "daemon.log").read_text()[-2000:]
-        time.sleep(0.5)
-    assert status() == "done"
-    body = (state / "logs" / f"{tid}.log").read_text().split("─" * 60 + "\n", 1)[1]
-    assert body == "".join(f"line{i}\n" for i in range(1, 9))         # every line, once
-    assert "Re-adopting 1 running task(s)." in (state / "daemon.log").read_text()
