@@ -1,6 +1,6 @@
 # gpu-spooler
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/rust-single%20static%20binary-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey?logo=linux&logoColor=white)](https://github.com)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Servers](https://img.shields.io/badge/GPU%20servers-30-blueviolet?logo=nvidia&logoColor=white)](https://www.ecs.vuw.ac.nz)
@@ -18,7 +18,7 @@ Jobs run **detached** on the server. Closing your laptop, losing wifi or restart
 curl -fsSL https://raw.githubusercontent.com/woodRock/gpu-spooler/main/install.sh | bash
 ```
 
-This installs `task`, `gpu-status` and `tui` into `~/.local/bin` (see [Installation](#installation)).
+This installs `task` into `~/.local/bin`: one static binary, nothing else needed (see [Installation](#installation)).
 
 On an ECS machine that's all the setup. On a laptop, once:
 
@@ -69,7 +69,7 @@ task fetch results --after "$id"               # copy results/ back once the tas
   - [Submitting Tasks](#submitting-tasks)
   - [Inspecting Tasks](#inspecting-tasks)
   - [Managing Tasks](#managing-tasks)
-  - [Interactive UI (`tui`)](#interactive-ui-tui)
+  - [Interactive UI (`task tui`)](#interactive-ui-task-tui)
   - [GPU Status](#gpu-status)
   - [Cluster Operations](#cluster-operations)
   - [Hosts & Connections](#hosts--connections)
@@ -117,38 +117,35 @@ All SSH traffic goes through a generated config with connection sharing (`Contro
 
 ## Installation
 
-**Requirements:** Python 3.10+, and SSH access to the GPU servers with key-based auth. Off campus, you can use a key or a one-time password on the jump host (see [Working Off Campus](#working-off-campus)).
+**Requirements:** macOS or Linux (x86_64 or arm64), and SSH access to the GPU servers with key-based auth. Off campus, you can use a key or a one-time password on the jump host (see [Working Off Campus](#working-off-campus)). Nothing else: `task` is a single binary (static on Linux), with no Python or other runtime to install. It uses your system's `ssh`, so your `~/.ssh/config`, keys and agent apply. (`task fetch` runs a small `python3` helper on the servers, as before; the ECS servers have one.)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/woodRock/gpu-spooler/main/install.sh | bash
 ```
 
-This installs `task`, `gpu-status` and `tui` with [uv](https://docs.astral.sh/uv/) as an isolated tool in `~/.local/bin`,
-installing uv first if needed (and Python 3.11 if the machine doesn't have it). No sudo. Add
-`bash -s -- --upgrade` to update to the latest `main`, or `bash -s -- --uninstall` to remove it:
+This downloads the `task` binary for your machine from the [latest release](https://github.com/woodRock/gpu-spooler/releases/latest), checks its SHA-256, and puts it in `~/.local/bin`. No sudo. Add `bash -s -- --upgrade` to update to the latest release, or `bash -s -- --uninstall` to remove it (your config and task history in `~/.gpu-spooler` are kept):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/woodRock/gpu-spooler/main/install.sh | bash -s -- --upgrade
 ```
 
-For development, from a checkout: `bash install.sh` creates a `.venv` in the checkout, installs the package in editable mode (with the optional [Textual](https://textual.textualize.io) dependency for `tui`), and symlinks the three commands into `~/.local/bin` (`dev/install-dev.sh`). The daemon then runs your checkout's code.
+**Coming from the Python version (0.1)?** The same one-liner switches you over. It stops the running daemon (your jobs keep running on the servers), replaces the old install, and starts the new daemon, which picks up the running jobs and copies the output they wrote in the meantime. Your `hosts.toml`, queue and logs carry over unchanged. `gpu-status` and `tui` are now `task gpus` and `task tui`. A different program called `task` (Taskwarrior, say) is left alone unless you add `--force`. To go back to the Python version (tag [`v0.1-python`](https://github.com/woodRock/gpu-spooler/tree/v0.1-python)), which adopts the jobs just the same:
 
+```sh
+task daemon stop
+uv tool install --force --python 3.11 'gpu-spooler[tui] @ git+https://github.com/woodRock/gpu-spooler@v0.1-python'
+task daemon start
+```
 
-There are three commands:
+Other ways to install: `cargo install --git https://github.com/woodRock/gpu-spooler gpu-spooler-cli` builds it from source, or from a checkout, `bash install.sh` builds it with cargo and links `target/release/task` into `~/.local/bin` (a rebuild then updates the command, and the daemon restarts itself on the new binary).
 
-- **`task`** is the non-interactive CLI. It's the one to use from scripts and tools such as Claude Code. It only needs the standard library.
-- **`tui`** is an interactive view of the queue, logs and GPUs.
-- **`gpu-status`** prints a one-off GPU availability table.
-
-`task` and `tui` are thin front ends over the same code (`gpu_spooler/core.py`), so they always behave the same way.
+`task` is the one command. It's non-interactive, so it suits scripts and tools such as Claude Code, and `task tui` is an interactive view of the queue, logs and GPUs. Both are front ends over the same library, so they always behave the same way.
 
 If `~/.local/bin` is not in your `PATH`, add this to your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
-
-Since the install is **editable**, any changes you make to the source files take effect immediately without reinstalling.
 
 To install a Python package on every server at once, see [Cluster Operations](#cluster-operations).
 
@@ -236,10 +233,10 @@ task submit -g 0 -H local -- 'python3 make_plots.py && echo done'
 
 ---
 
-### Interactive UI (`tui`)
+### Interactive UI (`task tui`)
 
 ```bash
-tui            # or: task tui
+task tui
 ```
 
 The window shows a live queue table (newest first). Below it are tabs for the selected task's **log**, a **GPU** heatmap, and task **info**.
@@ -250,23 +247,21 @@ The window shows a live queue table (newest first). Below it are tabs for the se
 | `k` | Kill a running task or cancel a queued one (asks first) |
 | `r` | Resubmit the selected task (same as `task resubmit`) |
 | `n` | New task: a form with the same fields as `task submit -g/-m/-H/-n/-C` |
-| `s` | Sync the git repo `tui` was started in (same as `task sync`) |
+| `s` | Sync the git repo `task tui` was started in (same as `task sync`) |
 | `f` | Follow: show the log full screen (press `f` again to return) |
 | `l` / `g` / `i` | Switch to the log / GPUs / info tab |
 | `c` | Clear finished tasks (same as `task clear`, asks first) |
 | `d` | Start the daemon if it is stopped |
 | `q` | Quit |
 
-The GPU heatmap has one row per server and one cell per GPU. A cell is **green** when the GPU is free, **blue** when one of your tasks is using it (the cell shows the task ID), and **red** when it's in use by someone else (the cell shows their username). `tui` doesn't connect to the servers to get this. It reads `~/.gpu-spooler/gpu_snapshot.json`, which the daemon refreshes every 30 s while a `tui` is open. So the daemon needs to be running (press `d` to start it).
-
-If Textual isn't installed, `tui` prints how to install it: `pip install -e '.[tui]'`, or re-run `install.sh`.
+The GPU heatmap has one row per server and one cell per GPU. A cell is **green** when the GPU is free, **blue** when one of your tasks is using it (the cell shows the task ID), and **red** when it's in use by someone else (the cell shows their username). `task tui` doesn't connect to the servers to get this. It reads `~/.gpu-spooler/gpu_snapshot.json`, which the daemon refreshes every 30 s while a `task tui` is open. So the daemon needs to be running (press `d` to start it).
 
 ---
 
 ### GPU Status
 
 ```bash
-task gpus                   # per-server summary table (gpu-status is the same command)
+task gpus                   # per-server summary table
 task gpus -d                # --detail: one row per GPU
 task gpus -f                # --free: hide fully-busy servers
 task gpus -H cuda14         # one server (or a group/tag, comma separated)
@@ -531,7 +526,7 @@ If the machine has NVIDIA GPUs, `-G N` jobs can use them too. Without `nvidia-sm
 | the-villa | 1 | RTX A6000 | 48 GB | 64 | 192 GB |
 | bordeaux | 1 | Quadro RTX 6000 | 24 GB | 20 | 64 GB |
 
-**Total: 30 servers · 78 GPUs.** Types are the names `nvidia-smi` reported on 2026-10-17 (cuda00–04 were unreachable and are unverified); `gpu-status` shows the current ones.
+**Total: 30 servers · 78 GPUs.** Types are the names `nvidia-smi` reported on 2026-10-17 (cuda00–04 were unreachable and are unverified); `task gpus` shows the current ones.
 
 ---
 
@@ -549,8 +544,8 @@ All state is stored in `~/.gpu-spooler/`:
 ├── ssh_config.jump
 ├── cm/                 # shared ssh connection sockets
 ├── network.json        # cached network-mode probe
-├── gpu_snapshot.json   # latest GPU query from the daemon (read by tui)
-├── gpu_snapshot.request  # touched by tui to ask for fresh snapshots
+├── gpu_snapshot.json   # latest GPU query from the daemon (read by task tui and task info)
+├── gpu_snapshot.request  # touched by task tui to ask for fresh snapshots
 └── logs/
     ├── 1.log           # Output for task 1
     └── ...
@@ -596,7 +591,7 @@ ssh-copy-id cuda01
 
 **GPU shows as busy but no jobs are running**
 
-`gpu-status` uses `nvidia-smi pmon` which shows all processes using the GPU, including display servers and idle CUDA contexts. Run `task gpus -d` to see the specific process names and users holding each GPU.
+`task gpus` uses `nvidia-smi pmon` which shows all processes using the GPU, including display servers and idle CUDA contexts. Run `task gpus -d` to see the specific process names and users holding each GPU.
 
 **Daemon disappeared while a task was running**
 
@@ -610,11 +605,20 @@ The task is marked `killed`, but the process may still be running. Check and kil
 
 ## Development
 
-Tests use pytest. The integration tests start a fake cluster on localhost: four unprivileged `sshd`s (entry, barretts, cuda01 with 2 × A5000, cuda02 with 4 × A40) with a mock `nvidia-smi`. They are skipped if `sshd` isn't available.
+gpu-spooler is a Cargo workspace: `crates/gpu-spooler` is the library (config, the ssh transport, GPU queries, the queue, the daemon, sync and fetch), which gpu-detective can build on, and `crates/gpu-spooler-cli` is the `task` binary (the commands and `task tui`).
 
 ```bash
-.venv/bin/pip install -e '.[test]'      # pytest + textual (the tui tests use Textual's test pilot)
-.venv/bin/python -m pytest tests
+cargo build --release        # target/release/task
+cargo test                   # unit tests, and golden tests against the Python version
+bash install.sh              # build this checkout and link it into ~/.local/bin
+```
+
+The golden tests (`crates/gpu-spooler/tests/golden.rs`) compare the library with fixtures in `tests/golden/parity/`, generated from the Python version at tag `v0.1-python`: every script sent to the servers, the generated ssh configs, config parsing and its errors, the parsers, task placement, tables and the tar safety rules. That is what keeps the two versions interchangeable on the same `~/.gpu-spooler`.
+
+The integration tests drive the `task` binary as a black box against a fake cluster on localhost: four unprivileged `sshd`s (entry, barretts, cuda01 with 2 × A5000, cuda02 with 4 × A40) with a mock `nvidia-smi`. They need pytest, and are skipped if `sshd` isn't available:
+
+```bash
+cargo build --release && python3 -m pytest tests     # or GPU_SPOOLER_BIN=/path/to/task
 
 # Use the fake cluster by hand
 dev/fake_cluster.sh up
@@ -628,15 +632,4 @@ dev/fake_cluster.sh down
 
 The sshd logs in `/tmp/ts-fake-cluster/run/sshd_*.log` show the traffic through each hop.
 
-**Rust port (in progress).** A Cargo workspace (`crates/gpu-spooler`, the library, and `crates/gpu-spooler-cli`, the `task` binary) is replacing the Python package one step at a time; until it's done, the Python version is the one that's installed. Its tests compare against fixtures generated from the Python code, so what is sent to the servers stays byte for byte the same:
-
-```bash
-cargo test                                  # Rust tests, including the golden fixtures
-.venv/bin/python dev/gen_golden.py          # regenerate tests/golden/parity/ after changing the Python code
-.venv/bin/python dev/gen_golden.py --check  # CI: are the fixtures current?
-cargo build --release && GPU_SPOOLER_BIN=target/release/task \
-  .venv/bin/python -m pytest tests     # the integration tests through the Rust binary, plus parity
-                                       # (same output as Python) and daemon handover tests
-```
-
-Every command is ported, `task tui` (in ratatui) included. The two daemons adopt each other's running jobs, so switching between versions never interrupts a job. Try it with `target/release/task`: `task daemon stop` with one version, then `task daemon start` with the other.
+Releases: push a `v*` tag matching the version in `Cargo.toml`, and `.github/workflows/release.yml` builds the four binaries and publishes them as a GitHub release, which `install.sh` downloads.
