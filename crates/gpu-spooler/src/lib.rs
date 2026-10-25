@@ -12,6 +12,7 @@ pub mod config;
 pub mod core;
 pub mod daemon;
 pub mod db;
+pub mod fetch;
 pub mod fmt;
 pub mod gpu;
 pub mod idle;

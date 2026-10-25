@@ -663,11 +663,51 @@ def gen_format_g() -> None:
     cases("format_g.json", [{"name": repr(v), "input": v, "output": f"{v:g}"} for v in vals])
 
 
+def gen_tar_filter() -> None:
+    """tarfile's 'data' filter, which fetch relies on, over a destination with a symlink that
+    escapes it (dest/out → {HOME}/elsewhere) and one that stays inside (dest/in → sub). Resolved
+    paths are written as {DEST}, {HOME} (the generator's home) and {TMP} (the folder above it)."""
+    import tarfile
+    dest = HOME / "dest"
+    (dest / "sub").mkdir(parents=True)
+    (HOME / "elsewhere").mkdir()
+    os.symlink(str(HOME / "elsewhere"), dest / "out")
+    os.symlink("sub", dest / "in")
+    real, real_home, real_tmp = (os.path.realpath(p) for p in (dest, HOME, HOME.parent))
+    T = {"file": tarfile.REGTYPE, "dir": tarfile.DIRTYPE, "symlink": tarfile.SYMTYPE, "hardlink": tarfile.LNKTYPE,
+         "fifo": tarfile.FIFOTYPE, "chr": tarfile.CHRTYPE}
+    members = [
+        ("plain", "file", 0o644, ""), ("exec", "file", 0o775, ""), ("noexec_group_x", "file", 0o651, ""),
+        ("setuid", "file", 0o4755, ""), ("ro", "file", 0o400, ""), ("deep/a/b.txt", "file", 0o600, ""),
+        ("/abs/x", "file", 0o644, ""), ("//abs2", "file", 0o644, ""), ("../up", "file", 0o644, ""),
+        ("a/../../up2", "file", 0o644, ""), ("out/etc/passwd", "file", 0o644, ""), ("in/ok.txt", "file", 0o644, ""),
+        ("d", "dir", 0o777, ""), ("ln", "symlink", 0o777, "plain"), ("ln_sub", "symlink", 0o777, "../plain"),
+        ("sub/ln_up", "symlink", 0o777, "../plain"), ("ln_out", "symlink", 0o777, "../../etc"),
+        ("ln_abs", "symlink", 0o777, "/etc/passwd"), ("ln_via_out", "symlink", 0o777, "out/etc"),
+        ("ln_via_in", "symlink", 0o777, "in/x"), ("hl", "hardlink", 0o644, "plain"),
+        ("hl_out", "hardlink", 0o644, "../x"), ("hl_abs", "hardlink", 0o644, "/x"), ("fifo", "fifo", 0o644, ""),
+        ("dev", "chr", 0o644, ""), ("it's", "symlink", 0o777, "../../x"),
+    ]
+    rows = []
+    for name, kind, mode, link in members:
+        ti = tarfile.TarInfo(name)
+        ti.type, ti.mode, ti.linkname = T[kind], mode, link
+        try:
+            new = tarfile.data_filter(ti, str(dest))
+            out = {"name": new.name, "mode": new.mode}
+        except tarfile.FilterError as e:
+            out = {"error": type(e).__name__,
+                   "message": str(e).replace(real, "{DEST}").replace(real_home, "{HOME}").replace(real_tmp, "{TMP}")}
+        rows.append({"name": f"{kind} {name}", "input": {"name": name, "kind": kind, "mode": mode, "link": link},
+                     "output": out})
+    cases("tar_filter.json", rows)
+
+
 def main() -> int:
     check = "--check" in sys.argv[1:]
     try:
         for gen in (gen_shell, gen_fmt, gen_wait, gen_config, gen_ssh_config, gen_jobs, gen_gpu, gen_snapshot,
-                    gen_daemon, gen_repo, gen_fetch, gen_provenance, gen_gpu_status, gen_task_details, gen_format_g):
+                    gen_daemon, gen_repo, gen_fetch, gen_provenance, gen_gpu_status, gen_task_details, gen_format_g, gen_tar_filter):
             gen()
     finally:
         shutil.rmtree(HOME, ignore_errors=True)

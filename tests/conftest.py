@@ -16,7 +16,7 @@ FAKE_SH = REPO / "dev" / "fake_cluster.sh"
 # Rust port has through it, and the Python version for the rest. A Rust `submit` starts the Rust
 # daemon, so these tests then exercise it too.
 RUST_BIN = os.environ.get("GPU_SPOOLER_BIN")
-RUST_COMMANDS = {"submit", "list", "ls", "info", "logs", "wait", "kill", "resubmit", "clear", "gpus",
+RUST_COMMANDS = {"submit", "list", "ls", "info", "logs", "wait", "kill", "resubmit", "clear", "gpus", "sync", "fetch",
                  "hosts", "exec", "ssh", "connect", "daemon", "config"}
 
 

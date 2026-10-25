@@ -487,3 +487,57 @@ fn assignment_matches_python() {
         assert_eq!(json!(gpu_budget(&cfg, &running)), c.output, "gpu_budget {}", c.name);
     }
 }
+
+// ── sync and fetch ───────────────────────────────────────────────────────────
+
+#[test]
+fn sync_and_fetch_scripts_are_byte_identical() {
+    use gpu_spooler::{fetch, repo};
+    for (name, path) in [("plain", "/vol/me/proj"), ("home", "~/repos/my proj"), ("quote", "/vol/it's")] {
+        assert_eq!(repo::prepare_script(path), text(&format!("repo/prepare.{name}.sh")), "prepare.{name}");
+        let commit = "0123456789abcdef0123456789abcdef01234567";
+        assert_eq!(repo::checkout_script(path, commit), text(&format!("repo/checkout.{name}.sh")), "checkout.{name}");
+    }
+    let remotes = ["/vol/me/proj/results", "~/x y", "/vol/it's"].map(String::from);
+    assert_eq!(fetch::list_script(&remotes), text("fetch/list.sh"));
+    let members = ["a.csv", "sub/b c.txt", "link"].map(String::from);
+    assert_eq!(fetch::tar_script("/vol/me/proj/results", &members), text("fetch/tar.sh"));
+}
+
+#[test]
+fn tar_filter_matches_python() {
+    use gpu_spooler::config::realpath;
+    use gpu_spooler::fetch::{filter, Refused};
+    let home = Home::new();
+    let h = home.dir.path();
+    std::fs::create_dir_all(h.join("dest/sub")).unwrap();
+    std::fs::create_dir(h.join("elsewhere")).unwrap();
+    std::os::unix::fs::symlink(h.join("elsewhere"), h.join("dest/out")).unwrap();
+    std::os::unix::fs::symlink("sub", h.join("dest/in")).unwrap();
+    let dest = realpath(&h.join("dest").display().to_string());
+    let real_home = realpath(&h.display().to_string());
+    let real_tmp = realpath(&h.parent().unwrap().display().to_string());
+    for c in cases("tar_filter.json") {
+        let i = &c.input;
+        let kind = match s(&i["kind"]) {
+            "file" => tar::EntryType::Regular,
+            "dir" => tar::EntryType::Directory,
+            "symlink" => tar::EntryType::Symlink,
+            "hardlink" => tar::EntryType::Link,
+            "fifo" => tar::EntryType::Fifo,
+            "chr" => tar::EntryType::Char,
+            other => panic!("unknown kind {other}"),
+        };
+        let link = Some(s(&i["link"])).filter(|l| !l.is_empty());
+        let got = match filter(s(&i["name"]), kind, i["mode"].as_u64().unwrap() as u32, link, &dest) {
+            Ok((name, mode)) => json!({"name": name, "mode": mode}),
+            Err(Refused(why)) => {
+                let why = why.replace(&dest, "{DEST}").replace(&real_home, "{HOME}").replace(&real_tmp, "{TMP}");
+                json!({"message": why})
+            }
+        };
+        let mut want = c.output.clone();
+        want.as_object_mut().unwrap().remove("error");
+        assert_eq!(got, want, "{}", c.name);
+    }
+}
