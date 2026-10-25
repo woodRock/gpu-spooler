@@ -586,11 +586,84 @@ def gen_gpu_status() -> None:
                                "output": None}] + rows)
 
 
+def _task(**kw) -> dict:
+    """A tasks row with every column, as the database returns it."""
+    row = {"id": 12, "command": "python3 train.py --epochs 5", "num_gpus": 1, "min_mem": 0, "status": "queued",
+           "server": None, "gpu_indices": None, "ssh_pid": None, "submitted_at": 1761400000.5, "started_at": None,
+           "finished_at": None, "exit_code": None, "log_file": None, "working_dir": "/vol/me/proj", "name": None,
+           "retry_count": 0, "job_key": None, "remote_pid": None, "log_offset": 0, "host_spec": None,
+           "remote_dir": None, "last_seen": None, "repo_root": None, "gpu_type": None, "git_commit": None,
+           "git_dirty": None, "git_dirty_paths": None, "no_record": 0}
+    row.update(kw)
+    return row
+
+
+TASK_DETAILS_TOML = '''
+[hosts.cuda01]
+gpu_type = "RTX A5000"
+gpu_mem_gb = 24
+[hosts.cuda05]
+gpu_mem_gb = 47.5
+[hosts.cuda06]
+[hosts.local]
+kind = "local"
+cpu_slots = 2
+'''
+
+TASK_SNAPSHOT = {"ts": 1761400000.0, "mode": "direct", "hosts": {
+    "cuda02": {"name": "cuda02", "reachable": True, "error": "", "ts": 1761400000.0, "gpus": [
+        {"index": 0, "name": "NVIDIA A40", "mem_used_mb": 1, "mem_free_mb": 1, "mem_total_mb": 2,
+         "utilization_pct": 0, "processes": []},
+        {"index": 1, "name": "NVIDIA L4", "mem_used_mb": 1, "mem_free_mb": 1, "mem_total_mb": 2,
+         "utilization_pct": 0, "processes": []},
+        {"index": 2, "name": "NVIDIA A40", "mem_used_mb": 1, "mem_free_mb": 1, "mem_total_mb": 2,
+         "utilization_pct": 0, "processes": []}]}}}
+
+
+def gen_task_details() -> None:
+    cfg = parsed(TASK_DETAILS_TOML)
+    snap = HOME / "snapshot.json"
+    snap.write_text(json.dumps(TASK_SNAPSHOT))
+    core.set_config(cfg)
+    core.SNAPSHOT_PATH = snap
+    rows = {
+        "queued_minimal": _task(),
+        "queued_cpu_everything": _task(num_gpus=0, name="plots", host_spec="local", min_mem=40, gpu_type="A40",
+                                       repo_root="/work/proj", remote_dir="/vol/me/proj/sub",
+                                       working_dir="/work/proj/sub"),
+        "done_snapshot_models": _task(status="done", server="cuda02", gpu_indices="0,2", started_at=1761400010.0,
+                                      finished_at=1761400231.9, exit_code=0, job_key="12-a1b2c3", remote_pid=4242,
+                                      log_file="{HOME}/.gpu-spooler/logs/12.log", retry_count=2,
+                                      remote_dir="/vol/me/proj"),
+        "done_all_models": _task(status="done", server="cuda02", gpu_indices=" , x", started_at=1761400010.0,
+                                 finished_at=1761400011.0, exit_code=0),
+        "failed_configured_type": _task(status="failed", server="cuda01", gpu_indices="1", started_at=1761400010.0,
+                                        finished_at=1761407300.0, exit_code=3, job_key="12-ffffff"),
+        "configured_mem_only": _task(status="killed", server="cuda05", gpu_indices="0", started_at=1761400010.0,
+                                     finished_at=1761400070.0),
+        "configured_nothing": _task(status="lost", server="cuda06", gpu_indices="0", started_at=1761400010.0,
+                                    finished_at=1761400070.0, exit_code=None),
+        "unknown_server": _task(status="cancelled", server="gone", finished_at=1761400070.0),
+    }
+    out = []
+    for name, row in rows.items():
+        out.append({"name": name, "input": row, "output": [list(x) for x in core.task_details(row)]})
+    cases("task_details.json", [{"name": "setup", "input": {"config": TASK_DETAILS_TOML, "snapshot": TASK_SNAPSHOT},
+                                 "output": None}] + out)
+    core.set_config(C.builtin_config())
+
+
+def gen_format_g() -> None:
+    vals = [0, 0.5, 1, 1.5, 5, 10, 59.99, 100, 3600, 123456, 999999, 1000000, 1234567, 0.0001, 0.00001,
+            1e-7, 2.5e10, 0.1 + 0.2, 7.123456789, 86400.0]
+    cases("format_g.json", [{"name": repr(v), "input": v, "output": f"{v:g}"} for v in vals])
+
+
 def main() -> int:
     check = "--check" in sys.argv[1:]
     try:
         for gen in (gen_shell, gen_fmt, gen_wait, gen_config, gen_ssh_config, gen_jobs, gen_gpu, gen_snapshot,
-                    gen_daemon, gen_repo, gen_fetch, gen_provenance, gen_gpu_status):
+                    gen_daemon, gen_repo, gen_fetch, gen_provenance, gen_gpu_status, gen_task_details, gen_format_g):
             gen()
     finally:
         shutil.rmtree(HOME, ignore_errors=True)

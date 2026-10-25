@@ -5,6 +5,7 @@ fetch/list.sh
 fetch/tar.sh
 fmt_duration.json
 fmt_ts.json
+format_g.json
 gpu/remote_cmd.sh
 gpu_budget.json
 gpu_model.json
@@ -60,5 +61,6 @@ ssh_config/fake_cluster.jump
 ssh_config/merging.jump
 ssh_config/template.direct
 ssh_config/template.jump
+task_details.json
 truncate.json
 wait_exit_code.json

@@ -39,6 +39,27 @@ impl Paths {
         self.state.join("network.json")
     }
 
+    pub fn db(&self) -> PathBuf {
+        self.state.join("tasks.db")
+    }
+
+    pub fn pid_file(&self) -> PathBuf {
+        self.state.join("daemon.pid")
+    }
+
+    pub fn daemon_log(&self) -> PathBuf {
+        self.state.join("daemon.log")
+    }
+
+    pub fn logs(&self) -> PathBuf {
+        self.state.join("logs")
+    }
+
+    /// The latest GPU query from the daemon (read by `task info`, `tui`, submit's checks).
+    pub fn snapshot(&self) -> PathBuf {
+        self.state.join("gpu_snapshot.json")
+    }
+
     pub fn expand_user(&self, path: &str) -> String {
         expand_user(path, &self.home)
     }

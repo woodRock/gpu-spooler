@@ -636,4 +636,4 @@ cargo build --release && GPU_SPOOLER_BIN=target/release/task \
   .venv/bin/python -m pytest tests/test_rust_parity.py   # same commands, same output, on the fake cluster
 ```
 
-Ported so far: `task gpus` (and the config, ssh transport and GPU query it uses).
+Ported so far: `task gpus`, `list`, `info`, `logs`, `wait`, `hosts`, `exec`, `ssh`, `connect`, `daemon status` and `config init|path`, with the config, ssh transport, GPU query and queue database they use. Try it with `target/release/task list` next to the Python version: these commands only read the queue.

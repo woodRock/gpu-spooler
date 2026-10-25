@@ -10,8 +10,10 @@ Each migration step adds the commands it ports.
 
 import os
 import re
+import signal
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -25,12 +27,15 @@ pytestmark = [pytest.mark.integration,
 PROGRESS = re.compile(r"^  \[ *\d+/\d+\] .*\n", re.M)
 
 
-def both(ts, *args):
-    py = subprocess.run([sys.executable, "-m", "gpu_spooler.task", *args], env=ts.env,
-                        capture_output=True, text=True, timeout=120, cwd=str(ts.home))
-    rs = subprocess.run([os.path.abspath(BIN), *args], env=ts.env,
-                        capture_output=True, text=True, timeout=120, cwd=str(ts.home))
-    return py, rs
+PY = [sys.executable, "-m", "gpu_spooler.task"]
+
+
+def both(ts, *args, input=None):
+    """Run `task ARGS` with the Python version, then with the Rust one."""
+    def one(argv):
+        return subprocess.run([*argv, *args], env=ts.env, capture_output=True, text=True, timeout=120,
+                              cwd=str(ts.home), input=input)
+    return one(PY), one([os.path.abspath(BIN)])
 
 
 def progress(out):
@@ -39,10 +44,11 @@ def progress(out):
 
 
 def same(py, rs):
-    assert rs.returncode == py.returncode, (py, rs)
-    assert PROGRESS.sub("", rs.stdout) == PROGRESS.sub("", py.stdout)
-    assert progress(rs.stdout) == progress(py.stdout)
-    assert rs.stderr == py.stderr
+    what = " ".join(rs.args[1:])
+    assert rs.returncode == py.returncode, (what, py, rs)
+    assert PROGRESS.sub("", rs.stdout) == PROGRESS.sub("", py.stdout), what
+    assert progress(rs.stdout) == progress(py.stdout), what
+    assert rs.stderr == py.stderr, what
 
 
 @pytest.mark.parametrize("args", [
@@ -83,3 +89,99 @@ def test_gpus_detective_history_missing(ts):
                    + f'\n[detective]\nhistory = "{ts.home}/none.db"\n')
     ts.env["GPU_SPOOLER_CONFIG"] = str(cfg)
     same(*both(ts, "gpus"))
+
+
+# ── step 2: the queue (read only) and the cluster ─────────────────────────────
+
+def test_list_without_tasks(ts):
+    same(*both(ts, "list"))
+
+
+def test_queue_commands(ts):
+    """A queue the Python version built, read by both."""
+    done = ts.submit("submit", "--", "echo hello; echo to-stderr >&2")
+    failed = ts.submit("submit", "-n", "labelled  run\nwith newline", "--", "echo out; exit 3")
+    cpu = ts.submit("submit", "-g", "0", "-H", "local", "--", "echo cpu")
+    queued = ts.submit("submit", "-g", "4", "-H", "cuda01", "-m", "20", "-t", "RTX A5000", "--", "true")
+    cancelled = ts.submit("submit", "-g", "4", "-H", "cuda01", "--", "true")
+    ts.run("kill", str(cancelled))
+    for tid, status in ((done, "done"), (failed, "failed"), (cpu, "done")):
+        ts.wait_status(tid, status, timeout=90)
+
+    for args in (["list"], ["ls", "-a"], ["list", "--al"], ["info", "99"], ["logs", "99"],
+                 ["logs", str(queued)], ["logs", str(cancelled)], ["logs", "-f", str(cancelled)],
+                 ["wait", "99"], ["wait", str(done)], ["wait", str(failed)], ["wait", str(cancelled)],
+                 ["wait", str(cpu), str(done), str(failed), str(done)],
+                 ["wait", str(queued), "--timeout", "0.5"], ["wait", str(done), str(queued), "--timeout", "1"]):
+        same(*both(ts, *args))
+    for tid in (done, failed, cpu, queued, cancelled):
+        same(*both(ts, "info", str(tid)))
+        if tid not in (queued, cancelled):
+            same(*both(ts, "logs", str(tid)))
+
+
+def interrupted(ts, *args, after=1.5):
+    """Run `task ARGS` with both versions and press Ctrl+C (SIGINT to the process group)."""
+    def one(argv):
+        p = subprocess.Popen([*argv, *args], env=ts.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, cwd=str(ts.home), start_new_session=True)
+        time.sleep(after)
+        os.killpg(p.pid, signal.SIGINT)
+        out, err = p.communicate(timeout=30)
+        return subprocess.CompletedProcess(p.args, p.returncode, out, err)
+    return one(PY), one([os.path.abspath(BIN)])
+
+
+def test_ctrl_c_stops_following_and_waiting(ts):
+    done = ts.submit("submit", "--", "echo line1; echo line2")
+    queued = ts.submit("submit", "-g", "4", "-H", "cuda01", "--", "true")
+    ts.wait_status(done, "done")
+    same(*interrupted(ts, "logs", "-f", str(done)))
+    same(*interrupted(ts, "wait", str(queued)))
+
+
+def test_hosts(ts):
+    same(*both(ts, "hosts"))
+    fake("stop", "cuda02")
+    try:
+        same(*both(ts, "hosts"))
+    finally:
+        fake("start", "cuda02")
+
+
+def test_exec(ts):
+    for args in (["exec", "--", "echo hi-$FAKE_HOST"], ["exec", "-H", "cuda01", "--", "echo bad; exit 3"],
+                 ["exec", "-H", "cuda02", "true"], ["exec", "-H", "local", "--", "printf ''; false"],
+                 ["exec"], ["exec", "-H", "nope", "--", "true"]):
+        same(*both(ts, *args))
+
+
+def test_ssh(ts):
+    same(*both(ts, "ssh", "nope"))
+    same(*both(ts, "ssh", "cuda01", input="echo hi-$FAKE_HOST; exit 4\n"))
+
+
+def test_connect(ts):
+    same(*both(ts, "connect"))
+
+
+def test_daemon_status(ts):
+    same(*both(ts, "daemon", "status"))
+    ts.submit("submit", "-g", "0", "-H", "local", "--", "true")       # starts the daemon
+    same(*both(ts, "daemon", "status"))
+
+
+def test_config_init_and_path(ts):
+    target = ts.home / "new" / "hosts.toml"
+    ts.env["GPU_SPOOLER_CONFIG"] = str(target)
+    same(*both(ts, "config", "path"))
+    for args in (["config", "init", "-u", "abc1"], ["config", "init"], ["config", "init", "--user", "x y"]):
+        py = subprocess.run([*PY, *args], env=ts.env, capture_output=True, text=True)
+        written = target.read_text()
+        target.unlink()
+        rs = subprocess.run([os.path.abspath(BIN), *args], env=ts.env, capture_output=True, text=True)
+        same(py, rs)
+        assert target.read_text() == written, args
+        same(*both(ts, "config", "path"))
+        same(*both(ts, *args))                                          # already exists
+        target.unlink()
