@@ -9,6 +9,7 @@ gpu/remote_cmd.sh
 gpu_budget.json
 gpu_model.json
 gpu_parse_output.json
+gpu_status.json
 gpu_status/detail.free.txt
 gpu_status/detail.txt
 gpu_status/label_warnings.txt

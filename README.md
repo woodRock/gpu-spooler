@@ -632,4 +632,8 @@ The sshd logs in `/tmp/ts-fake-cluster/run/sshd_*.log` show the traffic through 
 cargo test                                  # Rust tests, including the golden fixtures
 .venv/bin/python dev/gen_golden.py          # regenerate tests/golden/parity/ after changing the Python code
 .venv/bin/python dev/gen_golden.py --check  # CI: are the fixtures current?
+cargo build --release && GPU_SPOOLER_BIN=target/release/task \
+  .venv/bin/python -m pytest tests/test_rust_parity.py   # same commands, same output, on the fake cluster
 ```
+
+Ported so far: `task gpus` (and the config, ssh transport and GPU query it uses).

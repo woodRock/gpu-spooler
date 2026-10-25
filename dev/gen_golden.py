@@ -544,8 +544,7 @@ def gen_provenance() -> None:
                           for r in rows])
 
 
-def gen_gpu_status() -> None:
-    cfg = parsed('''
+GPU_STATUS_TOML = '''
 [groups.g]
 hosts = ["cuda01", "cuda02", "cuda14", "cuda20"]
 [hosts.cuda01]
@@ -556,7 +555,11 @@ gpu_type = "RTX A6000"
 kind = "local"
 gpu_type = "none"
 cpu_slots = 2
-''')
+'''
+
+
+def gen_gpu_status() -> None:
+    cfg = parsed(GPU_STATUS_TOML)
     results = list(_results().values())
 
     def capture(fn, *args, **kw) -> str:
@@ -565,13 +568,22 @@ cpu_slots = 2
             fn(*args, **kw)
         return buf.getvalue()
 
+    rows = []
+
+    def table(name, fn, *args, **kw):
+        text(f"gpu_status/{name}.txt", capture(fn, *args, **kw))
+        rows.append({"name": name, "input": None, "output": f"gpu_status/{name}.txt"})
+
     for free in (False, True):
         sfx = ".free" if free else ""
-        text(f"gpu_status/summary{sfx}.txt", capture(gpu_status.print_summary_table, results, cfg, free_only=free))
-        text(f"gpu_status/detail{sfx}.txt", capture(gpu_status.print_detail_table, results, free_only=free))
-    text("gpu_status/label_warnings.txt", capture(gpu_status.print_label_warnings, results, cfg))
-    text("gpu_status/totals.txt", capture(gpu_status.print_totals, results))
-    text("gpu_status/totals.unreachable0.txt", capture(gpu_status.print_totals, [r for r in results if r.reachable]))
+        table(f"summary{sfx}", gpu_status.print_summary_table, results, cfg, free_only=free)
+        table(f"detail{sfx}", gpu_status.print_detail_table, results, free_only=free)
+    table("label_warnings", gpu_status.print_label_warnings, results, cfg)
+    table("totals", gpu_status.print_totals, results)
+    table("totals.unreachable0", gpu_status.print_totals, [r for r in results if r.reachable])
+    cases("gpu_status.json", [{"name": "setup", "input": {"config": GPU_STATUS_TOML,
+                                                          "results": [asdict(r) for r in results]},
+                               "output": None}] + rows)
 
 
 def main() -> int:
