@@ -53,7 +53,11 @@ pub struct Ctx {
 
 impl Ctx {
     pub fn from_env() -> Ctx {
-        Ctx { paths: Paths::from_env(), transport: OnceLock::new() }
+        Ctx::new(Paths::from_env())
+    }
+
+    pub fn new(paths: Paths) -> Ctx {
+        Ctx { paths, transport: OnceLock::new() }
     }
 
     pub fn transport(&self) -> Result<&Transport, Fail> {

@@ -703,11 +703,67 @@ def gen_tar_filter() -> None:
     cases("tar_filter.json", rows)
 
 
+def _segments(t) -> list:
+    """A rich Text as [text, style] runs, unstyled gaps as ''."""
+    marks = sorted({0, len(t.plain), *[x for sp in t.spans for x in (sp.start, sp.end)]})
+    out = []
+    for a, b in zip(marks, marks[1:]):
+        styles = [str(sp.style) for sp in t.spans if sp.start <= a and b <= sp.end]
+        if a < b:
+            out.append([t.plain[a:b], " ".join(styles)])
+    return out
+
+
+def gen_tui() -> None:
+    from gpu_spooler import tui
+    rows = [_task(id=3, status=st, num_gpus=n, host_spec=hs, server=sv, gpu_indices=gi, name=nm,
+                  started_at=1761400010.0 if st != "queued" else None,
+                  finished_at=1761400231.0 if st not in ("queued", "running") else None,
+                  command="python3 train.py\n  --epochs 5")
+            for st, n, hs, sv, gi, nm in [("queued", 1, None, None, None, None), ("done", 2, "g", "cuda02", "0,2", "lbl"),
+                                          ("failed", 0, "local", "local", None, ""), ("killed", 1, None, "x", "1", None),
+                                          ("cancelled", 1, None, None, None, None), ("lost", 1, None, "y", "0", None),
+                                          ("weird", 1, None, None, None, None)]]
+    cases("tui_task_row.json", [{"name": r["status"], "input": r,
+                                  "output": [str(c) if not hasattr(c, "spans") else [c.plain, str(c.style)]
+                                             for c in tui.task_row(r)]} for r in rows])
+    snapshot = {"ts": 1761400000.0, "mode": "jump", "hosts": {
+        "cuda01": {"name": "cuda01", "reachable": True, "error": "", "gpus": [
+            {"index": 0, "name": "NVIDIA RTX A5000", "mem_used_mb": 9000, "mem_free_mb": 0, "mem_total_mb": 24564,
+             "utilization_pct": 90, "processes": [{"pid": 1, "user": "?", "mem_used_mb": 1, "command": "x"},
+                                                  {"pid": 2, "user": "alice_long", "mem_used_mb": 1, "command": "y"}]},
+            {"index": 1, "name": "NVIDIA RTX A5000", "mem_used_mb": 1, "mem_free_mb": 0, "mem_total_mb": 24564,
+             "utilization_pct": 0, "processes": []},
+            {"index": 2, "name": "NVIDIA RTX A5000", "mem_used_mb": 1, "mem_free_mb": 0, "mem_total_mb": 24564,
+             "utilization_pct": 0, "processes": []},
+            {"index": 3, "name": "NVIDIA RTX A5000", "mem_used_mb": 300, "mem_free_mb": 0, "mem_total_mb": 24564,
+             "utilization_pct": 0, "processes": []}]},
+        "zz-extra": {"name": "zz-extra", "reachable": True, "error": "", "gpus": []},
+        "cuda02": {"name": "cuda02", "reachable": False, "error": "ssh: connect to host cuda02 port 22: Connection "
+                   "timed out after a long while and more text", "gpus": []},
+        "cuda03": {"name": "cuda03", "reachable": False, "error": "", "gpus": []}}}
+    running = [{"id": 12, "server": "cuda01", "gpu_indices": "1,3"}, {"id": 4, "server": "cuda02", "gpu_indices": "0"},
+               {"id": 5, "server": "cuda01", "gpu_indices": " , x"}]
+    workers = ["cuda03", "cuda01", "cuda02", "missing"]
+    out = []
+    for name, snap, daemon in [("full", snapshot, True), ("none", None, True), ("none_daemon_stopped", None, False),
+                               ("no_hosts", {"ts": 1, "hosts": {}}, False)]:
+        orig = core.daemon_is_running
+        core.daemon_is_running = lambda d=daemon: d
+        try:
+            t = tui.render_gpu_map(snap, running, workers, now=1761400065.0)
+        finally:
+            core.daemon_is_running = orig
+        out.append({"name": name, "input": {"snapshot": snap, "running": running, "workers": workers,
+                                            "now": 1761400065.0, "daemon": daemon}, "output": _segments(t)})
+    cases("tui_gpu_map.json", out)
+
+
 def main() -> int:
     check = "--check" in sys.argv[1:]
     try:
         for gen in (gen_shell, gen_fmt, gen_wait, gen_config, gen_ssh_config, gen_jobs, gen_gpu, gen_snapshot,
-                    gen_daemon, gen_repo, gen_fetch, gen_provenance, gen_gpu_status, gen_task_details, gen_format_g, gen_tar_filter):
+                    gen_daemon, gen_repo, gen_fetch, gen_provenance, gen_gpu_status, gen_task_details, gen_format_g, gen_tar_filter, gen_tui):
             gen()
     finally:
         shutil.rmtree(HOME, ignore_errors=True)

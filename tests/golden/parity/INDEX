@@ -64,4 +64,6 @@ ssh_config/template.jump
 tar_filter.json
 task_details.json
 truncate.json
+tui_gpu_map.json
+tui_task_row.json
 wait_exit_code.json

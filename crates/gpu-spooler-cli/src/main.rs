@@ -1,6 +1,6 @@
-//! `task` - the gpu-spooler command line (Rust port, in progress).
+//! `task` - the gpu-spooler command line.
 //!
-//! Ported so far: everything but `tui`.
+//! Ported: every command the Python version has.
 
 mod cluster;
 mod color;
@@ -9,6 +9,7 @@ mod gpu_status;
 mod queue;
 mod repos;
 mod tasks;
+mod tui;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use ctx::{CmdResult, Ctx};
@@ -17,7 +18,9 @@ use std::process::ExitCode;
 const ABOUT: &str = "\
 task - GPU task spooler for SSH-reachable GPU servers (VUW ECS by default)
 
-The Rust port of gpu-spooler, in progress. Ported so far:
+The background daemon auto-starts on first submission and dispatches queued
+tasks to GPU servers as GPUs become free. Jobs run detached on the server, so
+they survive the SSH connection (or this machine) going away.
 
 Tasks:
   task submit [-g N] [OPTIONS] -- CMD     queue CMD (1 GPU unless -g says otherwise)
@@ -41,8 +44,16 @@ Cluster:
   task connect                            log in to jump hosts once (password/OTP)
   task daemon start|stop|status           the background daemon
   task config init|path                   the hosts.toml file
+  task tui                                interactive view of the queue, logs and GPUs
 
-Still the Python version: tui.";
+The same short flag means the same thing everywhere: -H hosts/groups/tags,
+-C directory (as with git -C), -g GPUs, -t GPU model, -n name, -q quiet,
+-f follow. `task COMMAND -h` shows a command's options.
+
+Examples:
+  task submit -- python3 train.py --epochs 50
+  task submit -g 2 -n \"ablation\" -t \"RTX A5000\" -- ./run.sh
+  id=$(task submit -q -- python3 eval.py) && task wait \"$id\" && task fetch results";
 
 /// Shown at the end of `task COMMAND -h`.
 fn examples(name: &str, rows: &[(&str, &str)]) -> String {
@@ -186,6 +197,10 @@ enum Cmd {
     ]))]
     Config(cluster::ConfigArgs),
 
+    /// Interactive view of the queue, logs and GPUs
+    #[command(after_help = examples("tui", &[("", "live queue, logs and a GPU heatmap (q quits)")]))]
+    Tui,
+
     /// The daemon itself (started by `task daemon start` and submit)
     #[command(name = "__daemon", hide = true)]
     RunDaemon,
@@ -200,6 +215,7 @@ fn run(cmd: Cmd) -> CmdResult {
         Cmd::Clear(a) => queue::clear(&ctx, &a),
         Cmd::Sync(a) => repos::sync(&ctx, &a),
         Cmd::Fetch(a) => repos::fetch(&ctx, &a),
+        Cmd::Tui => tui::run(&ctx),
         Cmd::RunDaemon => Ok(gpu_spooler::daemon::main(ctx.paths)),
         Cmd::List(a) => tasks::list(&ctx, &a),
         Cmd::Info(a) => tasks::info(&ctx, &a),

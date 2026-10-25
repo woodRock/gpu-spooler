@@ -1,0 +1,348 @@
+[
+ {
+  "name": "full",
+  "input": {
+   "snapshot": {
+    "ts": 1761400000.0,
+    "mode": "jump",
+    "hosts": {
+     "cuda01": {
+      "name": "cuda01",
+      "reachable": true,
+      "error": "",
+      "gpus": [
+       {
+        "index": 0,
+        "name": "NVIDIA RTX A5000",
+        "mem_used_mb": 9000,
+        "mem_free_mb": 0,
+        "mem_total_mb": 24564,
+        "utilization_pct": 90,
+        "processes": [
+         {
+          "pid": 1,
+          "user": "?",
+          "mem_used_mb": 1,
+          "command": "x"
+         },
+         {
+          "pid": 2,
+          "user": "alice_long",
+          "mem_used_mb": 1,
+          "command": "y"
+         }
+        ]
+       },
+       {
+        "index": 1,
+        "name": "NVIDIA RTX A5000",
+        "mem_used_mb": 1,
+        "mem_free_mb": 0,
+        "mem_total_mb": 24564,
+        "utilization_pct": 0,
+        "processes": []
+       },
+       {
+        "index": 2,
+        "name": "NVIDIA RTX A5000",
+        "mem_used_mb": 1,
+        "mem_free_mb": 0,
+        "mem_total_mb": 24564,
+        "utilization_pct": 0,
+        "processes": []
+       },
+       {
+        "index": 3,
+        "name": "NVIDIA RTX A5000",
+        "mem_used_mb": 300,
+        "mem_free_mb": 0,
+        "mem_total_mb": 24564,
+        "utilization_pct": 0,
+        "processes": []
+       }
+      ]
+     },
+     "zz-extra": {
+      "name": "zz-extra",
+      "reachable": true,
+      "error": "",
+      "gpus": []
+     },
+     "cuda02": {
+      "name": "cuda02",
+      "reachable": false,
+      "error": "ssh: connect to host cuda02 port 22: Connection timed out after a long while and more text",
+      "gpus": []
+     },
+     "cuda03": {
+      "name": "cuda03",
+      "reachable": false,
+      "error": "",
+      "gpus": []
+     }
+    }
+   },
+   "running": [
+    {
+     "id": 12,
+     "server": "cuda01",
+     "gpu_indices": "1,3"
+    },
+    {
+     "id": 4,
+     "server": "cuda02",
+     "gpu_indices": "0"
+    },
+    {
+     "id": 5,
+     "server": "cuda01",
+     "gpu_indices": " , x"
+    }
+   ],
+   "workers": [
+    "cuda03",
+    "cuda01",
+    "cuda02",
+    "missing"
+   ],
+   "now": 1761400065.0,
+   "daemon": true
+  },
+  "output": [
+   [
+    "  free ",
+    "black on green"
+   ],
+   [
+    " ",
+    ""
+   ],
+   [
+    " ours ",
+    "white on blue"
+   ],
+   [
+    " ",
+    ""
+   ],
+   [
+    " in use ",
+    "white on red"
+   ],
+   [
+    "   updated 1m 05s ago · network jump\n\n",
+    "dim"
+   ],
+   [
+    "cuda03    ",
+    "bold"
+   ],
+   [
+    "unreachable",
+    "dim red"
+   ],
+   [
+    "\n",
+    ""
+   ],
+   [
+    "cuda01    ",
+    "bold"
+   ],
+   [
+    " alic…",
+    "white on red"
+   ],
+   [
+    " ",
+    ""
+   ],
+   [
+    " #12  ",
+    "white on blue"
+   ],
+   [
+    " ",
+    ""
+   ],
+   [
+    " 2    ",
+    "black on green"
+   ],
+   [
+    " ",
+    ""
+   ],
+   [
+    " #12  ",
+    "white on blue"
+   ],
+   [
+    " ",
+    ""
+   ],
+   [
+    "  1/4 free  NVIDIA RTX A5000",
+    "dim"
+   ],
+   [
+    "\n",
+    ""
+   ],
+   [
+    "cuda02    ",
+    "bold"
+   ],
+   [
+    "unreachable",
+    "dim red"
+   ],
+   [
+    "  ssh: connect to host cuda02 port 22: Connection timed out a…",
+    "dim"
+   ],
+   [
+    "\n",
+    ""
+   ],
+   [
+    "zz-extra  ",
+    "bold"
+   ],
+   [
+    "no GPUs (CPU only)",
+    "dim"
+   ],
+   [
+    "\n",
+    ""
+   ]
+  ]
+ },
+ {
+  "name": "none",
+  "input": {
+   "snapshot": null,
+   "running": [
+    {
+     "id": 12,
+     "server": "cuda01",
+     "gpu_indices": "1,3"
+    },
+    {
+     "id": 4,
+     "server": "cuda02",
+     "gpu_indices": "0"
+    },
+    {
+     "id": 5,
+     "server": "cuda01",
+     "gpu_indices": " , x"
+    }
+   ],
+   "workers": [
+    "cuda03",
+    "cuda01",
+    "cuda02",
+    "missing"
+   ],
+   "now": 1761400065.0,
+   "daemon": true
+  },
+  "output": [
+   [
+    "No GPU snapshot yet. ",
+    "bold"
+   ],
+   [
+    "The daemon writes one while tui is open.",
+    "dim"
+   ]
+  ]
+ },
+ {
+  "name": "none_daemon_stopped",
+  "input": {
+   "snapshot": null,
+   "running": [
+    {
+     "id": 12,
+     "server": "cuda01",
+     "gpu_indices": "1,3"
+    },
+    {
+     "id": 4,
+     "server": "cuda02",
+     "gpu_indices": "0"
+    },
+    {
+     "id": 5,
+     "server": "cuda01",
+     "gpu_indices": " , x"
+    }
+   ],
+   "workers": [
+    "cuda03",
+    "cuda01",
+    "cuda02",
+    "missing"
+   ],
+   "now": 1761400065.0,
+   "daemon": false
+  },
+  "output": [
+   [
+    "No GPU snapshot yet. ",
+    "bold"
+   ],
+   [
+    "The daemon writes one while tui is open (daemon stopped: press d).",
+    "dim"
+   ]
+  ]
+ },
+ {
+  "name": "no_hosts",
+  "input": {
+   "snapshot": {
+    "ts": 1,
+    "hosts": {}
+   },
+   "running": [
+    {
+     "id": 12,
+     "server": "cuda01",
+     "gpu_indices": "1,3"
+    },
+    {
+     "id": 4,
+     "server": "cuda02",
+     "gpu_indices": "0"
+    },
+    {
+     "id": 5,
+     "server": "cuda01",
+     "gpu_indices": " , x"
+    }
+   ],
+   "workers": [
+    "cuda03",
+    "cuda01",
+    "cuda02",
+    "missing"
+   ],
+   "now": 1761400065.0,
+   "daemon": false
+  },
+  "output": [
+   [
+    "No GPU snapshot yet. ",
+    "bold"
+   ],
+   [
+    "The daemon writes one while tui is open (daemon stopped: press d).",
+    "dim"
+   ]
+  ]
+ }
+]
