@@ -185,3 +185,75 @@ def test_config_init_and_path(ts):
         same(*both(ts, "config", "path"))
         same(*both(ts, *args))                                          # already exists
         target.unlink()
+
+
+# ── step 3: commands that change the queue ────────────────────────────────────
+
+def twins(ts):
+    """Two fresh homes on the same cluster: (python's, rust's), so task IDs line up."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+    from conftest import TS
+    homes = [TS(Path(tempfile.mkdtemp(prefix="tsh.", dir="/tmp")), Path(ts.env["GPU_SPOOLER_CONFIG"]))
+             for _ in range(2)]
+    yield homes
+    for h in homes:
+        subprocess.run([*PY, "daemon", "stop"], env=h.env, capture_output=True)
+        subprocess.run([os.path.abspath(BIN), "daemon", "stop"], env=h.env, capture_output=True)
+        shutil.rmtree(h.home, ignore_errors=True)
+
+
+@pytest.fixture
+def pair(ts):
+    yield from twins(ts)
+
+
+def each(pair, *args, input=None):
+    """`task ARGS` with Python in one home and Rust in the other, from the same directory."""
+    py_home, rs_home = pair
+    def one(home, argv):
+        r = subprocess.run([*argv, *args], env=home.env, capture_output=True, text=True, timeout=120,
+                           cwd="/tmp", input=input)
+        # The homes differ only in their names (and the daemon's PID).
+        clean = lambda s: re.sub(r"PID \d+", "PID N", s.replace(str(home.home), "{HOME}"))
+        return subprocess.CompletedProcess(r.args, r.returncode, clean(r.stdout), clean(r.stderr))
+    return one(py_home, PY), one(rs_home, [os.path.abspath(BIN)])
+
+
+def test_submit_messages(pair):
+    for args in (["submit", "-g", "0", "-H", "local", "-n", "first", "--", "echo", "it's", "a b"],
+                 ["submit", "-g", "2", "-m", "20", "-H", "cuda01,cuda02", "-t", " RTX A5000, ,A40 ", "--", "true"],
+                 ["submit", "-q", "-g", "0", "-H", "cuda01", "-C", "/tmp", "--", "echo cpu nowhere"],
+                 ["submit", "-g", "1", "-H", "fake", "python3", "-c", "print(1)", "--flag"],
+                 ["submit"], ["submit", "--", "  "], ["submit", "-g", "-1", "true"],
+                 ["submit", "-g", "0", "-t", "A40", "true"], ["submit", "-H", "nope", "true"],
+                 ["resubmit", "1"], ["resubmit", "-q", "2"], ["resubmit", "99"]):
+        same(*each(pair, *args))
+    for home in pair:
+        home.wait_status(1, "done", 60)
+        home.wait_status(2, "done", 60)
+    same(*each(pair, "list"))
+
+
+def test_kill_and_clear_messages(pair):
+    for home in pair:
+        home.submit("submit", "-g", "0", "-H", "local", "--", "echo done")      # 1
+    for home in pair:
+        home.wait_status(1, "done", 60)
+    for args in (["submit", "-q", "-g", "4", "-H", "cuda01", "--", "true"],          # 2: never fits
+                 ["submit", "-q", "-g", "4", "-H", "cuda01", "--", "true"],          # 3
+                 ["kill"], ["kill", "2", "--all"], ["kill", "2", "2", "1"], ["kill", "99"],
+                 ["clear", "--reset"], ["kill", "--all"], ["clear"], ["list"], ["clear", "--reset"],
+                 ["list"], ["submit", "-q", "-g", "0", "-H", "local", "--", "true"]):
+        same(*each(pair, *args))
+
+
+def test_daemon_start_stop_messages(pair):
+    for args in (["daemon", "stop"], ["daemon", "status"], ["daemon", "start"], ["daemon", "start"],
+                 ["daemon", "status"], ["daemon", "stop"], ["daemon", "stop"], ["daemon", "bogus"]):
+        py, rs = each(pair, *args)
+        if args[1] == "bogus":                      # argparse and clap word usage errors differently
+            assert py.returncode == rs.returncode == 2
+            continue
+        same(py, rs)

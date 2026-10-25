@@ -96,14 +96,122 @@ pub fn repr_list(items: &[String]) -> String {
     format!("[{}]", inner.join(", "))
 }
 
-/// `repr(float)` for the values a config holds: always with a decimal point (exponent forms,
-/// which Python uses below 1e-4 and from 1e16, are not reproduced).
+/// `repr(float)`: the shortest digits that round-trip, positional from 1e-4 up to 1e16 and
+/// with an exponent outside that (`1e-05`, `1e+16`), always with a `.` or an exponent.
 pub fn repr_float(f: f64) -> String {
-    if f.is_finite() && f == f.trunc() {
-        format!("{f:.1}")
-    } else {
-        format!("{f}")
+    if f.is_nan() {
+        return "nan".into();
     }
+    if f.is_infinite() {
+        return if f > 0.0 { "inf" } else { "-inf" }.into();
+    }
+    if f == 0.0 {
+        return if f.is_sign_negative() { "-0.0" } else { "0.0" }.into();
+    }
+    // Rust's {:e} is the shortest round-trip form too: "1.5e-5", "1.7614000005e9".
+    let sci = format!("{f:e}");
+    let (mantissa, exp) = sci.split_once('e').expect("{:e} always has an exponent");
+    let exp: i32 = exp.parse().expect("integer exponent");
+    let neg = mantissa.starts_with('-');
+    let digits: String = mantissa.chars().filter(|c| c.is_ascii_digit()).collect();
+    let sign = if neg { "-" } else { "" };
+    if (-4..16).contains(&exp) {
+        let point = exp + 1; // digits before the decimal point
+        let body = if point <= 0 {
+            format!("0.{}{digits}", "0".repeat((-point) as usize))
+        } else if point as usize >= digits.len() {
+            format!("{digits}{}.0", "0".repeat(point as usize - digits.len()))
+        } else {
+            format!("{}.{}", &digits[..point as usize], &digits[point as usize..])
+        };
+        format!("{sign}{body}")
+    } else {
+        let mant = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits };
+        format!("{sign}{mant}e{}{:02}", if exp < 0 { '-' } else { '+' }, exp.abs())
+    }
+}
+
+/// `json.dumps(value)` with Python's defaults: `", "` and `": "` separators, keys in insertion
+/// order, non-ASCII as `\uXXXX`, floats as `repr`. Files both versions write (the GPU snapshot,
+/// the network cache, taura's env file) then come out the same.
+pub fn json_dumps(v: &serde_json::Value) -> String {
+    use serde_json::Value as J;
+    fn string(s: &str, out: &mut String) {
+        out.push('"');
+        for c in s.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\t' => out.push_str("\\t"),
+                '\u{8}' => out.push_str("\\b"),
+                '\u{c}' => out.push_str("\\f"),
+                c if (c as u32) < 0x20 || (c as u32) > 0x7e => {
+                    let mut buf = [0u16; 2];
+                    for unit in c.encode_utf16(&mut buf) {
+                        out.push_str(&format!("\\u{unit:04x}"));
+                    }
+                }
+                c => out.push(c),
+            }
+        }
+        out.push('"');
+    }
+    fn value(v: &J, out: &mut String) {
+        match v {
+            J::Null => out.push_str("null"),
+            J::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+            J::Number(n) => match (n.as_i64(), n.as_u64(), n.as_f64()) {
+                (Some(i), _, _) => out.push_str(&i.to_string()),
+                (_, Some(u), _) => out.push_str(&u.to_string()),
+                (_, _, Some(f)) if f.is_finite() => out.push_str(&repr_float(f)),
+                (_, _, Some(f)) => out.push_str(if f.is_nan() {
+                    "NaN"
+                } else if f > 0.0 {
+                    "Infinity"
+                } else {
+                    "-Infinity"
+                }),
+                _ => out.push_str(&n.to_string()),
+            },
+            J::String(s) => string(s, out),
+            J::Array(a) => {
+                out.push('[');
+                for (i, x) in a.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    value(x, out);
+                }
+                out.push(']');
+            }
+            J::Object(o) => {
+                out.push('{');
+                for (i, (k, x)) in o.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    string(k, out);
+                    out.push_str(": ");
+                    value(x, out);
+                }
+                out.push('}');
+            }
+        }
+    }
+    let mut out = String::new();
+    value(v, &mut out);
+    out
+}
+
+/// `shutil.which(name)`: the first executable called `name` on $PATH.
+pub fn which(name: &str) -> Option<std::path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|d| d.join(name))
+        .find(|p| std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
 }
 
 /// `repr()` of a value read from TOML (tomllib gives Python bools, ints, floats, strs, lists, dicts).
@@ -219,6 +327,15 @@ mod tests {
         assert_eq!(repr_float(2.5), "2.5");
         assert_eq!(repr_float(48.0), "48.0");
         assert_eq!(repr_float(0.1), "0.1");
+        assert_eq!(repr_float(1761400000.5), "1761400000.5");
+        assert_eq!(repr_float(1e-5), "1e-05");
+        assert_eq!(repr_float(1.5e-5), "1.5e-05");
+        assert_eq!(repr_float(1e16), "1e+16");
+        assert_eq!(repr_float(1234.0), "1234.0");
+        assert_eq!(repr_float(0.0001), "0.0001");
+        assert_eq!(repr_float(-2.5), "-2.5");
+        let v: serde_json::Value = serde_json::from_str(r#"{"b": 1, "a": [1.5, "naïve\n", null, true]}"#).unwrap();
+        assert_eq!(json_dumps(&v), r#"{"b": 1, "a": [1.5, "na\u00efve\n", null, true]}"#);
         assert_eq!(repr_value(&Value::Boolean(true)), "True");
     }
 }

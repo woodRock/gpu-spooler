@@ -10,11 +10,15 @@
 
 pub mod config;
 pub mod core;
+pub mod daemon;
 pub mod db;
 pub mod fmt;
 pub mod gpu;
 pub mod idle;
+pub mod jobs;
 pub mod paths;
+pub mod provenance;
 pub mod py;
+pub mod repo;
 pub mod shell;
 pub mod transport;

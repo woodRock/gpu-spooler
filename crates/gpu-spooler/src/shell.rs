@@ -37,3 +37,73 @@ pub fn command_from_argv<S: AsRef<str>>(argv: &[S]) -> String {
         _ => join(argv),
     }
 }
+
+/// `shlex.split` (POSIX mode, no comments). Err for an unclosed quote or a trailing backslash.
+pub fn split(s: &str) -> Result<Vec<String>, &'static str> {
+    let mut words = vec![];
+    let mut word = String::new();
+    let mut in_word = false;
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            ' ' | '\t' | '\r' | '\n' => {
+                if in_word {
+                    words.push(std::mem::take(&mut word));
+                    in_word = false;
+                }
+            }
+            '\\' => {
+                in_word = true;
+                word.push(chars.next().ok_or("No escaped character")?);
+            }
+            '\'' => {
+                in_word = true;
+                loop {
+                    match chars.next().ok_or("No closing quotation")? {
+                        '\'' => break,
+                        c => word.push(c),
+                    }
+                }
+            }
+            '"' => {
+                in_word = true;
+                loop {
+                    match chars.next().ok_or("No closing quotation")? {
+                        '"' => break,
+                        '\\' => match chars.next().ok_or("No closing quotation")? {
+                            c @ ('"' | '\\' | '$' | '`' | '\n') => word.push(c),
+                            c => {
+                                word.push('\\');
+                                word.push(c);
+                            }
+                        },
+                        c => word.push(c),
+                    }
+                }
+            }
+            c => {
+                in_word = true;
+                word.push(c);
+            }
+        }
+    }
+    if in_word {
+        words.push(word);
+    }
+    Ok(words)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_like_shlex() {
+        assert_eq!(split("a 'b c' \"d \\\" e\" f\\ g").unwrap(), ["a", "b c", "d \" e", "f g"]);
+        assert_eq!(split("x='' y").unwrap(), ["x=", "y"]);
+        assert_eq!(split("\"a\\b\"").unwrap(), ["a\\b"]);
+        assert!(split("python3 'unterminated").is_err());
+        assert!(split("trailing\\").is_err());
+        assert_eq!(split("  ").unwrap(), Vec::<String>::new());
+    }
+}

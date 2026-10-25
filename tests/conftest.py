@@ -12,6 +12,20 @@ REPO = Path(__file__).resolve().parent.parent
 FAKE = Path(os.environ.get("TS_FAKE_CLUSTER", "/tmp/ts-fake-cluster"))
 FAKE_SH = REPO / "dev" / "fake_cluster.sh"
 
+# With GPU_SPOOLER_BIN set (the Rust `task` binary), the integration tests run the commands the
+# Rust port has through it, and the Python version for the rest. A Rust `submit` starts the Rust
+# daemon, so these tests then exercise it too.
+RUST_BIN = os.environ.get("GPU_SPOOLER_BIN")
+RUST_COMMANDS = {"submit", "list", "ls", "info", "logs", "wait", "kill", "resubmit", "clear", "gpus",
+                 "hosts", "exec", "ssh", "connect", "daemon", "config"}
+
+
+def task_argv(*args: str) -> list[str]:
+    """How to run `task ARGS` in the integration tests (see RUST_BIN)."""
+    if RUST_BIN and args and args[0] in RUST_COMMANDS:
+        return [os.path.abspath(RUST_BIN), *args]
+    return [sys.executable, "-m", "gpu_spooler.task", *args]
+
 
 def _sshd() -> str | None:
     return shutil.which("sshd") or (os.path.exists("/usr/sbin/sshd") and "/usr/sbin/sshd") or None
@@ -53,7 +67,7 @@ class TS:
 
     def run(self, *args: str, check: bool = True, timeout: float = 120,
             cwd: str | None = None) -> subprocess.CompletedProcess:
-        r = subprocess.run([sys.executable, "-m", "gpu_spooler.task", *args],
+        r = subprocess.run(task_argv(*args),
                            env=self.env, capture_output=True, text=True,
                            timeout=timeout, cwd=cwd or str(self.home))
         if check and r.returncode != 0:

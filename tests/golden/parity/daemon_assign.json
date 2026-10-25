@@ -2,6 +2,7 @@
  {
   "name": "setup",
   "input": {
+   "config": "\n[groups.g]\nhosts = [\"cuda01\", \"cuda02\", \"cuda14\", \"cuda20\"]\n[hosts.cuda14]\ngpu_mem_gb = 48\n[hosts.local]\nkind = \"local\"\ncpu_slots = 2\n",
    "results": {
     "cuda02": {
      "name": "cuda02",

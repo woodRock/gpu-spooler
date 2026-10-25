@@ -270,6 +270,35 @@ pub fn query_hosts(
     transport.fan_out(hosts, |h| query_host(transport, h, debug), workers)
 }
 
+/// Write the latest GPU query for other readers (`task info`, the tui), as gpu.write_snapshot
+/// does. Hosts not in `results` keep their previous entry if listed in `keep`; each host records
+/// when it was last queried.
+pub fn write_snapshot(
+    path: &std::path::Path,
+    results: &IndexMap<String, ServerResult>,
+    mode: crate::transport::Mode,
+    keep: Option<&[String]>,
+) -> std::io::Result<()> {
+    use serde_json::{json, Map, Value};
+    let now = crate::transport::now();
+    let mut hosts: Map<String, Value> = Map::new();
+    if let Some(keep) = keep {
+        let old = std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok());
+        if let Some(Value::Object(old)) = old.as_ref().and_then(|o| o.get("hosts")) {
+            hosts = old.iter().filter(|(n, _)| keep.contains(n)).map(|(n, h)| (n.clone(), h.clone())).collect();
+        }
+    }
+    for (name, r) in results {
+        let mut entry = serde_json::to_value(r).map_err(std::io::Error::other)?;
+        entry["ts"] = json!(now);
+        hosts.insert(name.clone(), entry);
+    }
+    let data = json!({"ts": now, "mode": mode.as_str(), "hosts": hosts});
+    let tmp = path.with_file_name(format!("{}.tmp", path.file_name().and_then(|n| n.to_str()).unwrap_or("snapshot")));
+    std::fs::write(&tmp, py::json_dumps(&data))?;
+    std::fs::rename(&tmp, path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

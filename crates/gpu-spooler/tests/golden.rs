@@ -52,6 +52,13 @@ fn opt_s(v: &Value) -> Option<&str> {
     v.as_str()
 }
 
+/// A tasks row from a fixture; a null column takes its default, as `row[k] or 0` does in Python.
+fn task(v: &Value) -> gpu_spooler::db::Task {
+    let mut v = v.clone();
+    v.as_object_mut().unwrap().retain(|_, x| !x.is_null());
+    serde_json::from_value(v).unwrap()
+}
+
 // ── shell, fmt ───────────────────────────────────────────────────────────────
 
 #[test]
@@ -288,7 +295,7 @@ fn task_details_match_python() {
     cfg.source = Some(home.paths().config);
     let snapshot = &all[0].input["snapshot"];
     for c in &all[1..] {
-        let t: Task = serde_json::from_value(c.input.clone()).unwrap();
+        let t: Task = task(&c.input);
         let got: Vec<Value> = task_details(&t, Some(&cfg), Some(snapshot), 0.0)
             .into_iter()
             .map(|(label, value)| json!([label, value]))
@@ -315,7 +322,7 @@ fn wait_outcomes_match_python() {
     use gpu_spooler::core::{describe_end, wait_exit_code};
     use gpu_spooler::db::Task;
     for c in cases("wait_exit_code.json") {
-        let t: Task = serde_json::from_value(c.input.clone()).unwrap();
+        let t: Task = task(&c.input);
         assert_eq!(wait_exit_code(&t) as i64, c.output["code"].as_i64().unwrap(), "code {}", c.name);
         assert_eq!(describe_end(&t), s(&c.output["describe"]), "describe {}", c.name);
     }
@@ -325,5 +332,158 @@ fn wait_outcomes_match_python() {
 fn format_g_matches_python() {
     for c in cases("format_g.json") {
         assert_eq!(gpu_spooler::py::format_g(c.input.as_f64().unwrap()), s(&c.output), "format_g {}", c.name);
+    }
+}
+
+// ── jobs: the detached-job scripts and their output ──────────────────────────
+
+#[test]
+fn job_scripts_are_byte_identical() {
+    use gpu_spooler::jobs;
+    for c in cases("jobs_launch.json") {
+        let i = &c.input;
+        let got = jobs::launch_script(
+            s(&i["key"]),
+            s(&i["wdir"]),
+            s(&i["gpus"]),
+            s(&i["command"]),
+            i["delay"].as_bool().unwrap(),
+            opt_s(&i["probe"]),
+        );
+        assert_eq!(got, text(s(&c.output)), "launch {}", c.name);
+    }
+    for c in cases("jobs_scripts.json") {
+        let got = match c.name.as_str() {
+            "status" => {
+                let specs: Vec<(String, i64)> = c
+                    .input
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|p| (s(&p[0]).to_string(), p[1].as_i64().unwrap()))
+                    .collect();
+                jobs::status_script(&specs)
+            }
+            "kill" | "kill.grace3" => jobs::kill_script(s(&c.input[0]), c.input[1].as_u64().unwrap() as u32),
+            "cleanup" => jobs::cleanup_script(
+                &c.input.as_array().unwrap().iter().map(|v| v.as_i64().unwrap()).collect::<Vec<_>>(),
+            ),
+            other => panic!("unknown case {other}"),
+        };
+        assert_eq!(got, text(s(&c.output)), "{}", c.name);
+    }
+}
+
+#[test]
+fn job_output_parsing_matches_python() {
+    use gpu_spooler::jobs;
+    for c in cases("jobs_parse_status.json") {
+        let got = jobs::parse_status(s(&c.input)).map(|st| {
+            st.into_iter()
+                .map(|(k, v)| {
+                    let data: String = v.data.iter().map(|&b| b as char).collect(); // latin-1, as the fixture
+                    (k, json!({"state": v.state, "rc": v.rc, "size": v.size, "data": data}))
+                })
+                .collect::<serde_json::Map<_, _>>()
+        });
+        assert_eq!(json!(got), c.output, "parse_status {}", c.name);
+    }
+    for c in cases("jobs_parse_launch.json") {
+        let o = s(&c.input);
+        let got = json!({"pid": jobs::parse_launch(o), "git": jobs::parse_git(o), "dirty": jobs::parse_dirty(o)});
+        assert_eq!(got, c.output, "parse_launch {}", c.name);
+    }
+}
+
+// ── repo checks, provenance ──────────────────────────────────────────────────
+
+#[test]
+fn repo_check_scripts_are_byte_identical() {
+    use gpu_spooler::{jobs, repo};
+    for (name, path) in [("plain", "/vol/me/proj"), ("home", "~/repos/my proj"), ("quote", "/vol/it's")] {
+        assert_eq!(repo::check_script(path), text(&format!("repo/check.{name}.sh")), "check.{name}");
+    }
+    for c in cases("repo_constants.json") {
+        let got = match c.name.as_str() {
+            "FIND_GIT" => jobs::FIND_GIT,
+            "RECEIVE_PACK" => repo::RECEIVE_PACK,
+            "SYNC_REF" => repo::SYNC_REF,
+            other => panic!("unknown constant {other}"),
+        };
+        assert_eq!(got, s(&c.output), "{}", c.name);
+    }
+}
+
+#[test]
+fn provenance_matches_python() {
+    use gpu_spooler::db::Task;
+    use gpu_spooler::{jobs, provenance};
+    assert_eq!(jobs::PROBE, text("provenance/probe.py"));
+    for c in cases("probe_command.json") {
+        assert_eq!(provenance::probe_command(s(&c.input)), s(&c.output), "probe_command {}", c.name);
+    }
+    for c in cases("run_id.json") {
+        let t: Task = task(&c.input);
+        assert_eq!(provenance::run_id_in(&t, &chrono::Utc), s(&c.output), "run_id {}", c.name);
+    }
+}
+
+// ── daemon: which task goes where ────────────────────────────────────────────
+
+#[test]
+fn assignment_matches_python() {
+    use gpu_spooler::daemon::{assign_tasks, gpu_budget, host_states, Running};
+    use indexmap::IndexMap;
+    let home = Home::new();
+    let all = cases("daemon_assign.json");
+    let setup = &all[0].input;
+    let cfg = parse(&home, s(&setup["config"])).unwrap();
+    let results: IndexMap<String, ServerResult> = setup["results"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| (k.clone(), serde_json::from_value(v.clone()).unwrap()))
+        .collect();
+    let running: Vec<Running> = setup["running"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| Running {
+            server: opt_s(&r["server"]).map(String::from),
+            gpu_indices: opt_s(&r["gpu_indices"]).map(String::from),
+            num_gpus: r["num_gpus"].as_i64().unwrap(),
+        })
+        .collect();
+    for c in &all[1..] {
+        let mut states = host_states(&cfg, &results, &running);
+        let before: serde_json::Map<String, Value> = states
+            .iter()
+            .map(|(n, st)| {
+                let free: serde_json::Map<String, Value> =
+                    st.free.iter().map(|(i, f)| (i.to_string(), json!(f))).collect();
+                (n.clone(), json!({"free": free, "cpu_free": st.cpu_free, "mem_gb": st.mem_gb()}))
+            })
+            .collect();
+        let want_states = c.output["states"].as_object().unwrap();
+        assert_eq!(before.keys().collect::<Vec<_>>(), want_states.keys().collect::<Vec<_>>(), "{}: hosts", c.name);
+        for (n, st) in &before {
+            let w = &want_states[n];
+            assert_eq!(st["free"], w["free"], "{} {n}: free", c.name);
+            assert_eq!(st["cpu_free"], w["cpu_free"], "{} {n}: cpu_free", c.name);
+            assert!(
+                (st["mem_gb"].as_f64().unwrap() - w["mem_gb"].as_f64().unwrap()).abs() < 1e-9,
+                "{} {n}: mem",
+                c.name
+            );
+        }
+        let queue: Vec<gpu_spooler::db::Task> = c.input["queue"].as_array().unwrap().iter().map(task).collect();
+        let got = assign_tasks(&queue, &mut states, &cfg, c.input["budget"].as_i64());
+        let got: Vec<Value> = got.into_iter().map(|(t, h, g)| json!([t, h, g])).collect();
+        assert_eq!(json!(got), c.output["assignments"], "{}: assignments", c.name);
+    }
+    for c in cases("gpu_budget.json") {
+        let mut cfg = cfg.clone();
+        cfg.max_gpus = c.input.as_i64();
+        assert_eq!(json!(gpu_budget(&cfg, &running)), c.output, "gpu_budget {}", c.name);
     }
 }
