@@ -42,3 +42,30 @@ pub fn cases(name: &str) -> Vec<Case> {
 pub fn index() -> Vec<String> {
     text("INDEX").lines().map(str::to_string).collect()
 }
+
+/// A home folder for the port under test, and the placeholders the fixtures use for it.
+pub struct Home {
+    pub dir: tempfile::TempDir,
+}
+
+impl Home {
+    pub fn new() -> Home {
+        Home { dir: tempfile::tempdir().unwrap() }
+    }
+
+    pub fn paths(&self) -> gpu_spooler::paths::Paths {
+        gpu_spooler::paths::Paths::for_home(self.dir.path())
+    }
+
+    /// Output of the port, with this home and its ControlMaster directory written as the fixtures
+    /// write them.
+    pub fn scrub(&self, s: &str) -> String {
+        let cm = gpu_spooler::transport::cm_dir(&self.paths());
+        s.replace(&cm.display().to_string(), "{CM_DIR}").replace(&self.dir.path().display().to_string(), "{HOME}")
+    }
+
+    /// A fixture input, with `{HOME}` pointing at this home.
+    pub fn unscrub(&self, s: &str) -> String {
+        s.replace("{HOME}", &self.dir.path().display().to_string())
+    }
+}

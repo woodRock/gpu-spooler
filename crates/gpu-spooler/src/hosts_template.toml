@@ -1,0 +1,58 @@
+# gpu-spooler host configuration.
+# Docs: see the "Configuration" section of the README.
+
+[network]
+# auto   – probe the network: connect directly when on campus, via the jump
+#          chain otherwise (result cached for 5 minutes)
+# direct – always connect directly
+# jump   – always go through the jump chain
+mode = "auto"
+# probe = "cuda00.ecs.vuw.ac.nz"   # default: first worker that has a jump
+
+[limits]
+# At most this many GPUs in use by your tasks at once, across all hosts (queued
+# tasks wait). Leave unset for no limit.
+# max_gpus = 5
+
+# Show GPUs held but idle in `task gpus` and flag your idle tasks in `task list`,
+# from gpu-detective's history (run `detective watch` somewhere that shares
+# this home directory). Uncomment to turn on.
+# [detective]
+# history = "~/.gpu-detective/history.db"   # default; GPU_DETECTIVE_DB also works
+# idle_minutes = 30                         # under 5% utilisation for this long
+
+[ssh]
+# identity_file = "~/.ssh/id_ed25519"
+control_persist = "10m"        # how long worker connections stay open
+jump_control_persist = "12h"   # how long jump-hop connections stay open
+extra_options = []             # raw "Key=Value" ssh options
+
+# Off-campus route: laptop → entry → barretts → cudaXX.
+[jumps.ecs]
+chain = ["{user}@entry.ecs.vuw.ac.nz", "{user}@barretts.ecs.vuw.ac.nz"]
+
+[groups.ecs]
+user = "{user}"
+domain = "ecs.vuw.ac.nz"       # hostname = "<name>.<domain>"
+jump = "ecs"
+cpu_slots = 0
+# When you submit from a git repo that isn't on an ECS filesystem (e.g. on your
+# laptop), the job runs in <remote_root>/<repo name>/<same subdirectory>.
+# `task sync` pushes your working tree there; submit warns if it's stale.
+remote_root = "/vol/ecrg-solar/{user}"
+# Translate other local working directories to their path on ECS, e.g. when
+# submitting from a laptop checkout that mirrors an ECS directory:
+# path_map = [ { local = "~/code", remote = "/vol/ecrg-solar/{user}" } ]
+hosts = [
+    {host_list},
+]
+
+# Run jobs on this machine as well. -G 0 jobs use cpu_slots.
+# [hosts.local]
+# kind = "local"
+# cpu_slots = 2
+
+# Per-host details, used for display and as a fallback for -m/--min-mem when a
+# host has not been queried yet (what nvidia-smi reports wins; gpu-status warns
+# when they disagree). Set enabled = false to stop dispatching to a host.
+{info_blocks}

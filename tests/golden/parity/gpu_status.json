@@ -1,0 +1,196 @@
+[
+ {
+  "name": "setup",
+  "input": {
+   "config": "\n[groups.g]\nhosts = [\"cuda01\", \"cuda02\", \"cuda14\", \"cuda20\"]\n[hosts.cuda01]\ngpu_type = \"RTX A5000\"\n[hosts.cuda02]\ngpu_type = \"RTX A6000\"\n[hosts.local]\nkind = \"local\"\ngpu_type = \"none\"\ncpu_slots = 2\n",
+   "results": [
+    {
+     "name": "cuda02",
+     "reachable": true,
+     "error": "",
+     "gpus": [
+      {
+       "index": 0,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 1,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 300,
+       "mem_free_mb": 45768,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 2,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 18000,
+       "mem_free_mb": 28068,
+       "mem_total_mb": 46068,
+       "utilization_pct": 99,
+       "processes": [
+        {
+         "pid": 4242,
+         "user": "alice",
+         "mem_used_mb": 17990,
+         "command": "python"
+        }
+       ]
+      },
+      {
+       "index": 3,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 2,
+       "mem_free_mb": 46066,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": [
+        {
+         "pid": 5151,
+         "user": "bob",
+         "mem_used_mb": 0,
+         "command": "unknown"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "cuda01",
+     "reachable": true,
+     "error": "",
+     "gpus": [
+      {
+       "index": 0,
+       "name": "NVIDIA RTX A5000",
+       "mem_used_mb": 10,
+       "mem_free_mb": 24554,
+       "mem_total_mb": 24564,
+       "utilization_pct": -1,
+       "processes": []
+      },
+      {
+       "index": 1,
+       "name": "NVIDIA RTX A5000",
+       "mem_used_mb": 23000,
+       "mem_free_mb": 1564,
+       "mem_total_mb": 24564,
+       "utilization_pct": 87,
+       "processes": [
+        {
+         "pid": 777,
+         "user": "carol",
+         "mem_used_mb": 23000,
+         "command": "a_very_long_command_name_that_goes_on_and_on_and_on_for_more"
+        },
+        {
+         "pid": 999,
+         "user": "?",
+         "mem_used_mb": 0,
+         "command": "unknown"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "cuda14",
+     "reachable": true,
+     "error": "",
+     "gpus": [
+      {
+       "index": 0,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 1,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 2,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 3,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      }
+     ]
+    },
+    {
+     "name": "cuda20",
+     "reachable": false,
+     "error": "ssh: connect to host cuda20 port 22: Connection refused and a long tail so the error is cut at sixty characters for the table",
+     "gpus": []
+    },
+    {
+     "name": "local",
+     "reachable": true,
+     "error": "",
+     "gpus": []
+    }
+   ]
+  },
+  "output": null
+ },
+ {
+  "name": "summary",
+  "input": null,
+  "output": "gpu_status/summary.txt"
+ },
+ {
+  "name": "detail",
+  "input": null,
+  "output": "gpu_status/detail.txt"
+ },
+ {
+  "name": "summary.free",
+  "input": null,
+  "output": "gpu_status/summary.free.txt"
+ },
+ {
+  "name": "detail.free",
+  "input": null,
+  "output": "gpu_status/detail.free.txt"
+ },
+ {
+  "name": "label_warnings",
+  "input": null,
+  "output": "gpu_status/label_warnings.txt"
+ },
+ {
+  "name": "totals",
+  "input": null,
+  "output": "gpu_status/totals.txt"
+ },
+ {
+  "name": "totals.unreachable0",
+  "input": null,
+  "output": "gpu_status/totals.unreachable0.txt"
+ }
+]
