@@ -43,12 +43,7 @@ fn table(app: &App) -> Table<'static> {
     let rows: Vec<Row> = app
         .rows
         .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            let cells: Vec<Span> = task_row(t).into_iter().map(|(text, style)| Span::styled(text, style)).collect();
-            let zebra = if i % 2 == 1 { Style::new().bg(Color::Indexed(235)) } else { Style::new() };
-            Row::new(cells).style(zebra)
-        })
+        .map(|t| Row::new(task_row(t).into_iter().map(|(text, style)| Span::styled(text, style)).collect::<Vec<_>>()))
         .collect();
     let widths = [
         Constraint::Length(5),
