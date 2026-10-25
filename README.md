@@ -639,4 +639,4 @@ cargo build --release && GPU_SPOOLER_BIN=target/release/task \
                                        # (same output as Python) and daemon handover tests
 ```
 
-Ported so far: everything but `sync`, `fetch` and `tui`, including the daemon. The two daemons adopt each other's running jobs, so switching between versions never interrupts a job. Try it with `target/release/task`: `task daemon stop` with one version, then `task daemon start` with the other.
+Ported so far: everything but `tui`, including the daemon, `sync` and `fetch`. The two daemons adopt each other's running jobs, so switching between versions never interrupts a job. Try it with `target/release/task`: `task daemon stop` with one version, then `task daemon start` with the other.

@@ -1,12 +1,13 @@
 //! `task` - the gpu-spooler command line (Rust port, in progress).
 //!
-//! Ported so far: the queue, the daemon and the cluster commands. Still Python: sync, fetch, tui.
+//! Ported so far: everything but `tui`.
 
 mod cluster;
 mod color;
 mod ctx;
 mod gpu_status;
 mod queue;
+mod repos;
 mod tasks;
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -28,6 +29,10 @@ Tasks:
   task resubmit ID                        queue a copy of a task
   task clear [--reset]                    remove finished tasks (--reset: all, IDs from 1)
 
+Repos (submitting from a laptop):
+  task sync [--check]                     push this repo to the servers (--check: is it current?)
+  task fetch [OPTIONS] PATH...            copy outputs back (PATH or REMOTE:LOCAL)
+
 Cluster:
   task gpus [-d] [-f]                     GPU availability
   task hosts                              configured hosts and network mode
@@ -37,7 +42,7 @@ Cluster:
   task daemon start|stop|status           the background daemon
   task config init|path                   the hosts.toml file
 
-Still the Python version: sync, fetch and tui.";
+Still the Python version: tui.";
 
 /// Shown at the end of `task COMMAND -h`.
 fn examples(name: &str, rows: &[(&str, &str)]) -> String {
@@ -121,6 +126,24 @@ enum Cmd {
     ]))]
     Clear(queue::ClearArgs),
 
+    /// Push this git repo's working tree to its copy on the servers
+    #[command(after_help = examples("sync", &[
+        ("", "push this repo's working tree (uncommitted changes included)"),
+        ("--check", "is the servers' copy up to date? (exit 1 if not)"),
+    ]))]
+    Sync(repos::SyncArgs),
+
+    /// Copy PATHs back from the servers. A relative PATH maps into this repo's copy (or a path_map
+    /// entry); REMOTE:LOCAL names both sides. Links are never followed and locally changed files
+    /// are kept.
+    #[command(after_help = examples("fetch", &[
+        ("results", "this repo's results/ from the servers' copy"),
+        ("results --after 12 13", "once tasks 12 and 13 are done"),
+        ("results --dry-run", "show what would change"),
+        ("/vol/ecrg-solar/me/run/results:out", "explicit REMOTE:LOCAL"),
+    ]))]
+    Fetch(repos::FetchArgs),
+
     /// Show GPU availability across servers
     #[command(after_help = examples("gpus", &[
         ("", "one row per server"),
@@ -175,6 +198,8 @@ fn run(cmd: Cmd) -> CmdResult {
         Cmd::Kill(a) => queue::kill(&ctx, &a),
         Cmd::Resubmit(a) => queue::resubmit(&ctx, &a),
         Cmd::Clear(a) => queue::clear(&ctx, &a),
+        Cmd::Sync(a) => repos::sync(&ctx, &a),
+        Cmd::Fetch(a) => repos::fetch(&ctx, &a),
         Cmd::RunDaemon => Ok(gpu_spooler::daemon::main(ctx.paths)),
         Cmd::List(a) => tasks::list(&ctx, &a),
         Cmd::Info(a) => tasks::info(&ctx, &a),

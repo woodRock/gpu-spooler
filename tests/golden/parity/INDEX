@@ -61,6 +61,7 @@ ssh_config/fake_cluster.jump
 ssh_config/merging.jump
 ssh_config/template.direct
 ssh_config/template.jump
+tar_filter.json
 task_details.json
 truncate.json
 wait_exit_code.json

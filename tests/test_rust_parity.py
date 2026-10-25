@@ -8,6 +8,7 @@ the same output. Skipped unless GPU_SPOOLER_BIN points at the Rust `task` binary
 Each migration step adds the commands it ports.
 """
 
+import json
 import os
 import re
 import signal
@@ -255,3 +256,137 @@ def test_daemon_start_stop_messages(pair):
             assert py.returncode == rs.returncode == 2
             continue
         same(py, rs)
+
+
+# ── step 4: sync and fetch ────────────────────────────────────────────────────
+
+GIT = ["git", "-c", "user.email=t@example.com", "-c", "user.name=t"]
+
+
+@pytest.fixture
+def clones(pair, fake_cluster):
+    """Two identical clones of a repo, same name in different folders (so they share the servers'
+    copy), one per home: [(home, root)] for Python, then Rust."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+    name = f"proj{int(time.time() * 1000)}"
+    roots = [Path(tempfile.mkdtemp(prefix="tsr.", dir="/tmp")) / name for _ in range(2)]
+    first = roots[0]
+    for rel, text in {"sub/run.py": "print(1)\n", "results/r.txt": "committed\n", "results/keep.txt": "k\n"}.items():
+        (first / rel).parent.mkdir(parents=True, exist_ok=True)
+        (first / rel).write_text(text)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(first)], check=True)
+    subprocess.run([*GIT, "-C", str(first), "add", "."], check=True)
+    subprocess.run([*GIT, "-C", str(first), "commit", "-qm", "init"], check=True)
+    shutil.copytree(first, roots[1], symlinks=True)
+    yield list(zip(pair, roots)), fake_cluster / "repos" / name
+    for r in roots:
+        shutil.rmtree(r.parent, ignore_errors=True)
+    shutil.rmtree(fake_cluster / "repos" / name, ignore_errors=True)
+
+
+def in_clones(clones, *args, sub=""):
+    """`task ARGS` in each clone: Python in the first, Rust in the second, outputs normalised."""
+    (py_side, rs_side), _ = clones
+    def one(side, argv):
+        home, root = side
+        r = subprocess.run([*argv, *args], env=home.env, capture_output=True, text=True, timeout=120,
+                           cwd=str(root / sub))
+        def clean(s):
+            s = re.sub(r"\.task-fetch-[A-Za-z0-9_]+", ".task-fetch-*", s)
+            for real, name in ((os.path.realpath(root), "{ROOT}"), (str(root), "{ROOT}"),
+                               (os.path.realpath(root.parent), "{PARENT}"), (str(root.parent), "{PARENT}"),
+                               (str(home.home), "{HOME}")):
+                s = s.replace(real, name)
+            return s
+        return subprocess.CompletedProcess(r.args, r.returncode, clean(r.stdout), clean(r.stderr))
+    return one(py_side, PY), one(rs_side, [os.path.abspath(BIN)])
+
+
+def both_clones(clones, fn):
+    for (_, root) in clones[0]:
+        fn(root)
+
+
+def test_sync_messages(clones):
+    _, remote = clones
+    for args in (["sync", "--check"], ["sync"], ["sync", "--check"], ["sync", "-H", "nope"], ["sync", "-H", "local"]):
+        same(*in_clones(clones, *args))
+    same(*in_clones(clones, "sync", "--check", sub="sub"))
+    both_clones(clones, lambda root: (root / "sub" / "run.py").write_text("print(2)\n"))   # uncommitted
+    same(*in_clones(clones, "sync", "--check"))
+    same(*in_clones(clones, "sync"))
+    same(*in_clones(clones, "sync", "--check"))
+    (remote / "sub" / "run.py").write_text("edited on the server\n")
+    same(*in_clones(clones, "sync", "--check"))
+    same(*in_clones(clones, "sync"))                   # the same tree: the server's edit is kept
+    both_clones(clones, lambda root: (root / "sub" / "run.py").write_text("print(3)\n"))
+    same(*in_clones(clones, "sync"))                   # now it conflicts: FAIL, exit 1
+    same(*in_clones(clones, "sync", sub="../.."))      # not in a git repo
+
+
+def test_fetch_messages(clones):
+    _, remote = clones
+    same(*in_clones(clones, "fetch", "results"))      # no copy on the servers yet
+    same(*in_clones(clones, "sync"))
+    (remote / "results" / "r.txt").write_text("from the server\n")
+    (remote / "results" / "deep").mkdir()
+    (remote / "results" / "deep" / "n.txt").write_text("new\n")
+    (remote / "results" / "x.bin").write_bytes(bytes(range(256)) * 4)
+    os.chmod(remote / "results" / "x.bin", 0o4755)
+    os.symlink("r.txt", remote / "results" / "inside_link")
+    os.symlink("../../..", remote / "results" / "outside_link")
+    os.symlink(str(remote.parent), remote / "results" / "absolute_link")
+    for args in (["fetch", "results", "--dry-run"], ["fetch", "results"], ["fetch", "results"],
+                 ["fetch", "results/deep/n.txt", "results/missing", "results/keep.txt"]):
+        same(*in_clones(clones, *args))
+    both_clones(clones, lambda root: (root / "results" / "deep" / "n.txt").write_text("my edit\n"))
+    (remote / "results" / "deep" / "n.txt").write_text("newer\n")
+    for args in (["fetch", "results"], ["fetch", "results", "--force"], ["fetch", "--dry-run", "results"]):
+        same(*in_clones(clones, *args))
+    same(*in_clones(clones, "fetch", "../results", sub="sub"))
+    both_clones(clones, lambda root: (root / "elsewhere").mkdir())
+    for args in ([f"{remote}/results/r.txt:elsewhere"], [f"{remote}/results:copy"], ["results/../.."],
+                 ["/tmp"], ["-H", "nope", "results"], ["-H", "local", "results"], ["results", "--after", "999"]):
+        same(*in_clones(clones, "fetch", *args))
+    for (_, root) in clones[0]:
+        assert (root / "results" / "deep" / "n.txt").read_text() == "newer\n"
+        assert os.readlink(root / "results" / "inside_link") == "r.txt"
+        assert not os.path.lexists(root / "results" / "outside_link")
+        assert (root / "results" / "x.bin").stat().st_mode & 0o7777 == 0o755
+        assert (root / "elsewhere" / "r.txt").read_text() == "from the server\n"
+    py_manifest = json.loads((clones[0][0][0].state / "fetched.json").read_text())
+    rs_manifest = json.loads((clones[0][1][0].state / "fetched.json").read_text())
+    rel = lambda m, root: sorted(os.path.relpath(k, os.path.realpath(root)) for k in m)
+    assert rel(py_manifest, clones[0][0][1]) == rel(rs_manifest, clones[0][1][1])
+
+
+def test_fetch_after_two_tasks_attributes_each_file(clones):
+    """fetch --after A B: each file on the task that wrote it, the shared one reported, and (with
+    taura installed) each task's outputs recorded on its own run."""
+    import shutil
+    sides, remote = clones
+    for (_, root) in sides:
+        (root / "ledger").mkdir()
+        (root / "ledger" / "artifacts.toml").write_text("")
+        subprocess.run([*GIT, "-C", str(root), "add", "ledger"], check=True)
+        subprocess.run([*GIT, "-C", str(root), "commit", "-qm", "ledger"], check=True)
+    same(*in_clones(clones, "sync"))
+    a = "sleep 1; mkdir -p results/a && echo a > results/a/x.txt && echo c > results/$(echo common).txt; sleep 2"
+    b = "sleep 1; mkdir -p results/b && echo b > results/b/y.txt && echo s > results/shared.txt ; sleep 2"
+    for (home, root), argv in zip(sides, (PY, [os.path.abspath(BIN)])):
+        # One version at a time: both write the same files in the servers' copy.
+        for cmd in (a, b):
+            r = subprocess.run([*argv, "submit", "-q", "-g", "1", "-H", "cuda02", "--", cmd], env=home.env,
+                               capture_output=True, text=True, cwd=str(root))
+            assert r.returncode == 0, r.stderr
+        for tid in (1, 2):
+            home.wait_status(tid, "done", 60)
+    py, rs = in_clones(clones, "fetch", "results", "--after", "1", "2")
+    same(py, rs)
+    # x.txt is task 1's and y.txt and shared.txt are task 2's (their commands name them); common.txt
+    # is named by neither and both ran when it was written.
+    assert "Warning: 1 file(s) could not be told apart between tasks 1, 2" in py.stdout, py.stdout
+    if shutil.which("taura"):
+        assert "Recorded 2 output(s) of task 1" in py.stdout and "Recorded 3 output(s) of task 2" in py.stdout, py.stdout

@@ -1,0 +1,340 @@
+[
+ {
+  "name": "file plain",
+  "input": {
+   "name": "plain",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "name": "plain",
+   "mode": 420
+  }
+ },
+ {
+  "name": "file exec",
+  "input": {
+   "name": "exec",
+   "kind": "file",
+   "mode": 509,
+   "link": ""
+  },
+  "output": {
+   "name": "exec",
+   "mode": 493
+  }
+ },
+ {
+  "name": "file noexec_group_x",
+  "input": {
+   "name": "noexec_group_x",
+   "kind": "file",
+   "mode": 425,
+   "link": ""
+  },
+  "output": {
+   "name": "noexec_group_x",
+   "mode": 416
+  }
+ },
+ {
+  "name": "file setuid",
+  "input": {
+   "name": "setuid",
+   "kind": "file",
+   "mode": 2541,
+   "link": ""
+  },
+  "output": {
+   "name": "setuid",
+   "mode": 493
+  }
+ },
+ {
+  "name": "file ro",
+  "input": {
+   "name": "ro",
+   "kind": "file",
+   "mode": 256,
+   "link": ""
+  },
+  "output": {
+   "name": "ro",
+   "mode": 384
+  }
+ },
+ {
+  "name": "file deep/a/b.txt",
+  "input": {
+   "name": "deep/a/b.txt",
+   "kind": "file",
+   "mode": 384,
+   "link": ""
+  },
+  "output": {
+   "name": "deep/a/b.txt",
+   "mode": 384
+  }
+ },
+ {
+  "name": "file /abs/x",
+  "input": {
+   "name": "/abs/x",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "name": "abs/x",
+   "mode": 420
+  }
+ },
+ {
+  "name": "file //abs2",
+  "input": {
+   "name": "//abs2",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "name": "abs2",
+   "mode": 420
+  }
+ },
+ {
+  "name": "file ../up",
+  "input": {
+   "name": "../up",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "error": "OutsideDestinationError",
+   "message": "'../up' would be extracted to '{HOME}/up', which is outside the destination"
+  }
+ },
+ {
+  "name": "file a/../../up2",
+  "input": {
+   "name": "a/../../up2",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "error": "OutsideDestinationError",
+   "message": "'a/../../up2' would be extracted to '{HOME}/up2', which is outside the destination"
+  }
+ },
+ {
+  "name": "file out/etc/passwd",
+  "input": {
+   "name": "out/etc/passwd",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "error": "OutsideDestinationError",
+   "message": "'out/etc/passwd' would be extracted to '{HOME}/elsewhere/etc/passwd', which is outside the destination"
+  }
+ },
+ {
+  "name": "file in/ok.txt",
+  "input": {
+   "name": "in/ok.txt",
+   "kind": "file",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "name": "in/ok.txt",
+   "mode": 420
+  }
+ },
+ {
+  "name": "dir d",
+  "input": {
+   "name": "d",
+   "kind": "dir",
+   "mode": 511,
+   "link": ""
+  },
+  "output": {
+   "name": "d",
+   "mode": null
+  }
+ },
+ {
+  "name": "symlink ln",
+  "input": {
+   "name": "ln",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "plain"
+  },
+  "output": {
+   "name": "ln",
+   "mode": null
+  }
+ },
+ {
+  "name": "symlink ln_sub",
+  "input": {
+   "name": "ln_sub",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "../plain"
+  },
+  "output": {
+   "error": "LinkOutsideDestinationError",
+   "message": "'ln_sub' would link to '{HOME}/plain', which is outside the destination"
+  }
+ },
+ {
+  "name": "symlink sub/ln_up",
+  "input": {
+   "name": "sub/ln_up",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "../plain"
+  },
+  "output": {
+   "name": "sub/ln_up",
+   "mode": null
+  }
+ },
+ {
+  "name": "symlink ln_out",
+  "input": {
+   "name": "ln_out",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "../../etc"
+  },
+  "output": {
+   "error": "LinkOutsideDestinationError",
+   "message": "'ln_out' would link to '{TMP}/etc', which is outside the destination"
+  }
+ },
+ {
+  "name": "symlink ln_abs",
+  "input": {
+   "name": "ln_abs",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "/etc/passwd"
+  },
+  "output": {
+   "error": "AbsoluteLinkError",
+   "message": "'ln_abs' is a link to an absolute path"
+  }
+ },
+ {
+  "name": "symlink ln_via_out",
+  "input": {
+   "name": "ln_via_out",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "out/etc"
+  },
+  "output": {
+   "error": "LinkOutsideDestinationError",
+   "message": "'ln_via_out' would link to '{HOME}/elsewhere/etc', which is outside the destination"
+  }
+ },
+ {
+  "name": "symlink ln_via_in",
+  "input": {
+   "name": "ln_via_in",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "in/x"
+  },
+  "output": {
+   "name": "ln_via_in",
+   "mode": null
+  }
+ },
+ {
+  "name": "hardlink hl",
+  "input": {
+   "name": "hl",
+   "kind": "hardlink",
+   "mode": 420,
+   "link": "plain"
+  },
+  "output": {
+   "name": "hl",
+   "mode": 420
+  }
+ },
+ {
+  "name": "hardlink hl_out",
+  "input": {
+   "name": "hl_out",
+   "kind": "hardlink",
+   "mode": 420,
+   "link": "../x"
+  },
+  "output": {
+   "error": "LinkOutsideDestinationError",
+   "message": "'hl_out' would link to '{HOME}/x', which is outside the destination"
+  }
+ },
+ {
+  "name": "hardlink hl_abs",
+  "input": {
+   "name": "hl_abs",
+   "kind": "hardlink",
+   "mode": 420,
+   "link": "/x"
+  },
+  "output": {
+   "error": "AbsoluteLinkError",
+   "message": "'hl_abs' is a link to an absolute path"
+  }
+ },
+ {
+  "name": "fifo fifo",
+  "input": {
+   "name": "fifo",
+   "kind": "fifo",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "error": "SpecialFileError",
+   "message": "'fifo' is a special file"
+  }
+ },
+ {
+  "name": "chr dev",
+  "input": {
+   "name": "dev",
+   "kind": "chr",
+   "mode": 420,
+   "link": ""
+  },
+  "output": {
+   "error": "SpecialFileError",
+   "message": "'dev' is a special file"
+  }
+ },
+ {
+  "name": "symlink it's",
+  "input": {
+   "name": "it's",
+   "kind": "symlink",
+   "mode": 511,
+   "link": "../../x"
+  },
+  "output": {
+   "error": "LinkOutsideDestinationError",
+   "message": "\"it's\" would link to '{TMP}/x', which is outside the destination"
+  }
+ }
+]

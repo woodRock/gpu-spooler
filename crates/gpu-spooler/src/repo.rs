@@ -2,21 +2,24 @@
 //! filesystem with the servers (e.g. a laptop).
 //!
 //! The remote copy lives at <remote_root>/<repo name> on each host group (ECS servers share NFS,
-//! so one copy serves the whole group). This module has what `task submit` needs to check that
-//! copy; `task sync` (pushing to it) comes with the next migration step.
+//! so one copy serves the whole group). `task sync` pushes a snapshot of the local working tree -
+//! HEAD plus uncommitted changes to tracked files, via `git stash create`, which doesn't touch the
+//! local repo - over the spooler's own ssh route, then checks it out (detached) on the remote
+//! side. The servers never need credentials for the git origin.
 
 use crate::config::{Config, Host};
 use crate::jobs::FIND_GIT;
 use crate::py;
 use crate::shell::sh_path;
 use crate::transport::Transport;
-use std::cell::OnceCell;
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 pub const SYNC_REF: &str = "refs/gpu-spooler/sync";
 pub const RECEIVE_PACK: &str = "bash -lc 'exec git-receive-pack \"$@\"' git-receive-pack";
 pub const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+pub const PUSH_TIMEOUT: Duration = Duration::from_secs(600);
 
 fn git(root: &str, args: &[&str]) -> Option<(bool, String)> {
     let out = Command::new("git").arg("-C").arg(root).args(args).output().ok()?;
@@ -34,7 +37,7 @@ pub struct LocalRepo {
     pub branch: Option<String>,
     /// uncommitted changes to tracked files
     pub dirty: bool,
-    snapshot: OnceCell<String>,
+    snapshot: OnceLock<String>,
 }
 
 impl LocalRepo {
@@ -82,7 +85,7 @@ pub fn find_repo(path: &str) -> Option<LocalRepo> {
     let head = value(&["rev-parse", "-q", "--verify", "HEAD"]);
     let branch = value(&["symbolic-ref", "-q", "--short", "HEAD"]);
     let dirty = value(&["status", "--porcelain", "--untracked-files=no"]).is_some();
-    Some(LocalRepo { root, head, branch, dirty, snapshot: OnceCell::new() })
+    Some(LocalRepo { root, head, branch, dirty, snapshot: OnceLock::new() })
 }
 
 // ── Where the copies live ─────────────────────────────────────────────────────
@@ -201,4 +204,105 @@ pub fn staleness(repo: &LocalRepo, target: &Target, st: &RemoteState) -> Option<
         }
         _ => return None,
     })
+}
+
+// ── Syncing ───────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug)]
+pub struct SyncResult<'c> {
+    pub target: Target<'c>,
+    pub ok: bool,
+    pub message: String,
+}
+
+pub fn prepare_script(path: &str) -> String {
+    let p = sh_path(path);
+    format!(
+        r#"{FIND_GIT}command -v git >/dev/null 2>&1 || {{ echo "git is not installed" >&2; exit 3; }}
+P={p}
+if [ ! -e "$P" ]; then
+  mkdir -p "$P" && git init -q "$P" || exit 1
+elif [ "$(git -C "$P" rev-parse --show-toplevel 2>/dev/null)" != "$(cd "$P" && pwd -P)" ]; then
+  if [ -n "$(ls -A "$P")" ]; then echo "$P exists and is not a git repo" >&2; exit 4; fi
+  git init -q "$P" || exit 1
+fi
+echo READY
+"#
+    )
+}
+
+pub fn checkout_script(path: &str, commit: &str) -> String {
+    format!(
+        "{FIND_GIT}cd {} || exit 1\ngit checkout -q --detach {} || exit 5\necho SYNCED\n",
+        sh_path(path),
+        crate::shell::quote(commit)
+    )
+}
+
+fn last_line(text: &str, rc: i32) -> String {
+    let t = py::strip(text);
+    py::splitlines(t).last().filter(|_| !t.is_empty()).map_or(format!("exit {rc}"), |l| l.to_string())
+}
+
+/// Push the local working tree snapshot to one target and check it out.
+pub fn sync<'c>(transport: &Transport, repo: &LocalRepo, target: &Target<'c>) -> SyncResult<'c> {
+    let result = |ok: bool, message: String| SyncResult { target: target.clone(), ok, message };
+    let commit = repo.snapshot().to_string();
+    if commit.is_empty() {
+        return result(false, "the local repo has no commits yet".into());
+    }
+    let host = target.host;
+
+    let r = transport.run(host, &prepare_script(&target.path), Duration::from_secs(60));
+    if r.rc != 0 || !r.stdout.contains("READY") {
+        return result(false, last_line(&r.stderr, r.rc));
+    }
+
+    let ssh_config = match transport.ssh_config(None) {
+        Ok(p) => p,
+        Err(e) => return result(false, format!("git push failed: {e}")),
+    };
+    let push = Command::new("git")
+        .args(["-C", &repo.root, "push", "-q", "--force", "--no-verify"])
+        .arg(format!("--receive-pack={RECEIVE_PACK}"))
+        .arg(format!("{}:{}", host.alias(), target.path))
+        .arg(format!("{commit}:{SYNC_REF}"))
+        .env("GIT_SSH_COMMAND", format!("ssh -F {}", crate::shell::quote(&ssh_config.display().to_string())))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn();
+    let mut push = match push {
+        Ok(p) => p,
+        Err(e) => return result(false, format!("git push failed: {e}")),
+    };
+    // stderr is read on a thread, so a chatty git can't fill the pipe while we wait.
+    let mut err_pipe = push.stderr.take().expect("piped stderr");
+    let reader = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = std::io::Read::read_to_string(&mut err_pipe, &mut s);
+        s
+    });
+    use wait_timeout::ChildExt;
+    let status = match push.wait_timeout(PUSH_TIMEOUT) {
+        Ok(Some(s)) => s,
+        _ => {
+            let _ = push.kill();
+            let _ = push.wait();
+            return result(false, format!("git push timed out after {}s", PUSH_TIMEOUT.as_secs()));
+        }
+    };
+    let stderr = reader.join().unwrap_or_default();
+    if !status.success() {
+        return result(false, format!("git push failed: {}", last_line(&stderr, status.code().unwrap_or(-1))));
+    }
+
+    let r = transport.run(host, &checkout_script(&target.path, &commit), Duration::from_secs(120));
+    if r.rc != 0 || !r.stdout.contains("SYNCED") {
+        let lines = py::splitlines(py::strip(&r.stderr));
+        let detail = lines[lines.len().saturating_sub(3)..].join(" ");
+        let detail = if detail.is_empty() { format!("exit {}", r.rc) } else { detail };
+        return result(false, format!("checkout failed on the server: {detail}"));
+    }
+    result(true, format!("{} now at {}", target.path, repo.describe()))
 }

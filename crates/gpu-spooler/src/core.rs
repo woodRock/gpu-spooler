@@ -369,10 +369,7 @@ pub fn submit(transport: &Transport, opts: &SubmitOpts) -> Result<Submitted, Tas
     let candidates = cfg
         .select(host_spec.as_deref())
         .map_err(|e| TaskError::User(format!("-H {}: {e}", host_spec.as_deref().unwrap_or("None"))))?;
-    let working_dir = match opts.working_dir.as_deref().filter(|d| !d.is_empty()) {
-        Some(d) => crate::config::abspath(&transport.paths.expand_user(d)),
-        None => logical_cwd(),
-    };
+    let working_dir = working_dir(&transport.paths, opts.working_dir.as_deref());
 
     // Off an ECS filesystem, a git repo is run from its remote copy (see repo.rs).
     let on_ecs = on_ecs_filesystem(&working_dir);
@@ -694,6 +691,71 @@ pub fn clear_finished(transport: &Transport) -> Result<Cleared, TaskError> {
     let mut failed_hosts: Vec<String> = cleaned.into_iter().filter(|(_, ok)| !ok).map(|(h, _)| h).collect();
     failed_hosts.sort();
     Ok(Cleared { tasks, log_files, failed_hosts })
+}
+
+// ── Repos ─────────────────────────────────────────────────────────────────────
+
+/// The local git repo at a directory and where its remote copies live.
+pub struct RepoInfo<'c> {
+    pub repo: crate::repo::LocalRepo,
+    pub copies: Vec<crate::repo::Target<'c>>,
+    pub working_dir: String,
+}
+
+/// The directory a command acts on: `-C DIR` (`~` expanded), or the shell's cwd.
+pub fn working_dir(paths: &Paths, dir: Option<&str>) -> String {
+    match dir.filter(|d| !d.is_empty()) {
+        Some(d) => crate::config::abspath(&paths.expand_user(d)),
+        None => logical_cwd(),
+    }
+}
+
+/// The local git repo at working_dir and where its remote copies live.
+pub fn repo_for<'c>(
+    transport: &'c Transport,
+    dir: Option<&str>,
+    host_spec: Option<&str>,
+) -> Result<RepoInfo<'c>, TaskError> {
+    let working_dir = working_dir(&transport.paths, dir);
+    let repo = crate::repo::find_repo(&working_dir)
+        .ok_or_else(|| TaskError::User(format!("{working_dir} is not inside a git repo")))?;
+    let cfg = &transport.cfg;
+    let hosts =
+        cfg.select(host_spec).map_err(|e| TaskError::User(format!("-H {}: {e}", host_spec.unwrap_or("None"))))?;
+    let copies = crate::repo::targets(cfg, &hosts, &repo, &working_dir);
+    if copies.is_empty() {
+        return Err(TaskError::User(format!(
+            "no selected host has remote_root set (or path_map already covers {working_dir}); see the Configuration \
+             section of the README"
+        )));
+    }
+    Ok(RepoInfo { repo, copies, working_dir })
+}
+
+/// Push the local working tree to every remote copy (in parallel).
+pub fn sync_repo<'c>(transport: &Transport, info: &RepoInfo<'c>) -> Vec<crate::repo::SyncResult<'c>> {
+    let hosts: Vec<&Host> = info.copies.iter().map(|t| t.host).collect();
+    let mut results = transport.fan_out(
+        &hosts,
+        |h| {
+            let t = info.copies.iter().find(|t| t.host.name == h.name).expect("one copy per host");
+            crate::repo::sync(transport, &info.repo, t)
+        },
+        16,
+    );
+    info.copies.iter().map(|t| results.shift_remove(&t.host.name).expect("every copy synced")).collect()
+}
+
+/// How many running tasks use a working directory under one of these remote paths.
+pub fn running_in(con: &Connection, paths: &[String]) -> Result<usize, TaskError> {
+    let dirs: Vec<String> = con
+        .prepare("SELECT remote_dir FROM tasks WHERE status='running' AND remote_dir IS NOT NULL")?
+        .query_map([], |r| r.get(0))?
+        .collect::<Result<_, _>>()?;
+    Ok(dirs
+        .iter()
+        .filter(|d| paths.iter().any(|p| *d == p || d.starts_with(&format!("{}/", p.trim_end_matches('/')))))
+        .count())
 }
 
 // ── The daemon process ────────────────────────────────────────────────────────
