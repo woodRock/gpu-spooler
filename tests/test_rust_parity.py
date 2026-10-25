@@ -230,10 +230,8 @@ def test_submit_messages(pair):
                  ["submit", "-g", "0", "-t", "A40", "true"], ["submit", "-H", "nope", "true"],
                  ["resubmit", "1"], ["resubmit", "-q", "2"], ["resubmit", "99"]):
         same(*each(pair, *args))
-    for home in pair:
-        home.wait_status(1, "done", 60)
-        home.wait_status(2, "done", 60)
-    same(*each(pair, "list"))
+    # Not `list` here: the two homes' daemons share the fake cluster's GPUs, so which GPUs (and how
+    # soon) each one's tasks get differs. test_queue_commands compares `list` on one queue.
 
 
 def test_kill_and_clear_messages(pair):
