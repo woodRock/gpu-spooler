@@ -478,6 +478,8 @@ If [taura](https://github.com/woodRock/taura) is installed and the repo keeps a 
 | the task ends | exit code and finish time (each retry is its own run: `<date>-spooler-<id>-2`, ...) |
 | `task fetch PATHS --after ID` | the files that came back new or changed, with content hashes |
 
+With several IDs (`--after 85 86`), each file is recorded on the task that wrote it: the task whose command names the file or a directory above it most specifically (`--out results/a` claims `results/a/summary.csv`), and otherwise the task that was running when it was written. A file that neither tells apart (same command, same time) is recorded on each task with a warning; fetch those tasks' outputs one at a time to keep them apart.
+
 taura then links the paper's results and figures to these runs (`taura trace`, `taura tui`) and warns when a result comes from a dirty or failed run, or from code that has changed since. Commands run on your own machine are recorded the same way with `taura run -- python3 train.py ...`.
 
 For a one-off check that isn't an experiment, `task submit --no-record -- ...` skips the record.
