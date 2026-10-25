@@ -172,12 +172,8 @@ def test_daemon_restarts_itself_when_code_changes(ts):
     tid = ts.submit("submit", "-g", "1", "sleep 6; echo survived")
     ts.wait_status(tid, "running", 30)
     pid = int((ts.state / "daemon.pid").read_text())
-    from conftest import RUST_BIN
-    if RUST_BIN:                                      # the Rust daemon watches its binary
-        src = Path(RUST_BIN).resolve()
-    else:
-        src = Path(__file__).resolve().parent.parent / "gpu_spooler" / "jobs.py"
-    os.utime(src)                                     # looks like an update
+    from conftest import BIN
+    os.utime(BIN)                                     # looks like an upgrade: the daemon watches its binary
     log = ts.state / "daemon.log"
     deadline = time.time() + 15
     while "Code changed on disk" not in log.read_text():

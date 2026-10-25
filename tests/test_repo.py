@@ -6,15 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gpu_spooler.repo import sh_path
-
 GIT = ["git", "-c", "user.email=t@example.com", "-c", "user.name=t"]
-
-
-def test_sh_path():
-    assert sh_path("/a b/c") == "'/a b/c'"
-    assert sh_path("~/x y") == "\"$HOME\"/'x y'"
-    assert sh_path("~") == '"$HOME"'
 
 
 @pytest.fixture

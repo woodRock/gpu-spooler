@@ -1,9 +1,8 @@
 //! gpu-spooler - queue jobs onto SSH-reachable GPU servers.
 //!
-//! The Rust port of the Python `gpu_spooler` package, in progress: modules arrive one migration
-//! step at a time, and until the port is done the Python version is the one that runs.
-//! Everything sent to the servers must match the Python version byte for byte; `tests/golden.rs`
-//! checks the port against fixtures generated from the Python code (`dev/gen_golden.py`).
+//! A rewrite of the Python gpu-spooler (0.1, tag `v0.1-python`) that keeps its state, config and
+//! everything it sends to the servers byte for byte, so either version adopts the other's jobs.
+//! `tests/golden.rs` checks that against fixtures generated from the Python code.
 //!
 //! gpu-detective uses [`config`] (hosts.toml), [`transport`] (the ssh route) and [`gpu`] (the
 //! nvidia-smi query and its parser).

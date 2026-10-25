@@ -1,5 +1,5 @@
-//! Access to the golden fixtures in tests/golden/parity/, written by `dev/gen_golden.py` from the
-//! Python implementation. Placeholders: `{HOME}` for the home folder the generator used and
+//! Access to the golden fixtures in tests/golden/parity/, written from the Python implementation by
+//! `dev/gen_golden.py` at tag v0.1-python (they are its record now; the generator went with it). Placeholders: `{HOME}` for the home folder the generator used and
 //! `{CM_DIR}` for its ControlMaster directory; times are UTC.
 
 #![allow(dead_code)]
