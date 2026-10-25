@@ -1,0 +1,82 @@
+[
+ {
+  "name": "''",
+  "input": "",
+  "output": "''"
+ },
+ {
+  "name": "'plain'",
+  "input": "plain",
+  "output": "plain"
+ },
+ {
+  "name": "'with space'",
+  "input": "with space",
+  "output": "'with space'"
+ },
+ {
+  "name": "\"it's\"",
+  "input": "it's",
+  "output": "'it'\"'\"'s'"
+ },
+ {
+  "name": "'a\"b'",
+  "input": "a\"b",
+  "output": "'a\"b'"
+ },
+ {
+  "name": "'$HOME'",
+  "input": "$HOME",
+  "output": "'$HOME'"
+ },
+ {
+  "name": "'~/x'",
+  "input": "~/x",
+  "output": "'~/x'"
+ },
+ {
+  "name": "'a*b'",
+  "input": "a*b",
+  "output": "'a*b'"
+ },
+ {
+  "name": "'-n'",
+  "input": "-n",
+  "output": "-n"
+ },
+ {
+  "name": "'@%+=:,./-_'",
+  "input": "@%+=:,./-_",
+  "output": "@%+=:,./-_"
+ },
+ {
+  "name": "'naïve'",
+  "input": "naïve",
+  "output": "'naïve'"
+ },
+ {
+  "name": "'tab\\there'",
+  "input": "tab\there",
+  "output": "'tab\there'"
+ },
+ {
+  "name": "'new\\nline'",
+  "input": "new\nline",
+  "output": "'new\nline'"
+ },
+ {
+  "name": "'x;y'",
+  "input": "x;y",
+  "output": "'x;y'"
+ },
+ {
+  "name": "'back\\\\slash'",
+  "input": "back\\slash",
+  "output": "'back\\slash'"
+ },
+ {
+  "name": "\"'\"",
+  "input": "'",
+  "output": "''\"'\"''"
+ }
+]

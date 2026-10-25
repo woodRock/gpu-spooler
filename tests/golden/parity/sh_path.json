@@ -1,0 +1,37 @@
+[
+ {
+  "name": "~",
+  "input": "~",
+  "output": "\"$HOME\""
+ },
+ {
+  "name": "~/",
+  "input": "~/",
+  "output": "\"$HOME\"/''"
+ },
+ {
+  "name": "~/x y/z",
+  "input": "~/x y/z",
+  "output": "\"$HOME\"/'x y/z'"
+ },
+ {
+  "name": "/vol/me/proj",
+  "input": "/vol/me/proj",
+  "output": "/vol/me/proj"
+ },
+ {
+  "name": "/path/it's",
+  "input": "/path/it's",
+  "output": "'/path/it'\"'\"'s'"
+ },
+ {
+  "name": "~user/x",
+  "input": "~user/x",
+  "output": "'~user/x'"
+ },
+ {
+  "name": "relative dir",
+  "input": "relative dir",
+  "output": "'relative dir'"
+ }
+]

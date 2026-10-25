@@ -1,0 +1,146 @@
+[
+ {
+  "name": "h:/work/j/code",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/work/j/code"
+  ],
+  "output": {
+   "map_path": "/vol/a",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:/work/j/code/",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/work/j/code/"
+  ],
+  "output": {
+   "map_path": "/vol/a",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:/work/j/code/x/y",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/work/j/code/x/y"
+  ],
+  "output": {
+   "map_path": "/vol/a/x/y",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:/work/j/codex",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/work/j/codex"
+  ],
+  "output": {
+   "map_path": "/work/j/codex",
+   "is_mapped": false
+  }
+ },
+ {
+  "name": "h:/work/j/code/deep",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/work/j/code/deep"
+  ],
+  "output": {
+   "map_path": "/vol/b",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:/work/j/code/deep/more",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/work/j/code/deep/more"
+  ],
+  "output": {
+   "map_path": "/vol/b/more",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:/mapped/x",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/mapped/x"
+  ],
+  "output": {
+   "map_path": "/elsewhere/x",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:{HOME}/data/set",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "{HOME}/data/set"
+  ],
+  "output": {
+   "map_path": "/vol/data/set",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "h:/unmapped/p",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "h",
+   "/unmapped/p"
+  ],
+  "output": {
+   "map_path": "/unmapped/p",
+   "is_mapped": false
+  }
+ },
+ {
+  "name": "root:/",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "root",
+   "/"
+  ],
+  "output": {
+   "map_path": "/srv",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "root:/a/b",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "root",
+   "/a/b"
+  ],
+  "output": {
+   "map_path": "/srv/a/b",
+   "is_mapped": true
+  }
+ },
+ {
+  "name": "plain:/work/j/code",
+  "input": [
+   "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+   "plain",
+   "/work/j/code"
+  ],
+  "output": {
+   "map_path": "/work/j/code",
+   "is_mapped": false
+  }
+ }
+]

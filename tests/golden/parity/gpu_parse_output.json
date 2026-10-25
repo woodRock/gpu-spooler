@@ -1,0 +1,181 @@
+[
+ {
+  "name": "a40_mixed",
+  "input": "GPU_INFO\n0, NVIDIA A40, 1, 46067, 46068, 0, Default\n1, NVIDIA A40, 300, 45768, 46068, 0, Default\n2, NVIDIA A40, 18000, 28068, 46068, 99, Default\n3, NVIDIA A40, 2, 46066, 46068, 0, Default\nPMON_INFO\n# gpu         pid   type     sm    mem    enc    dec    jpg    ofa     fb   command\n# Idx           #    C/G      %      %      %      %      %      %     MB   name\n    0           -      -      -      -      -      -      -      -      -   -\n    1           -      -      -      -      -      -      -      -      -   -\n    2       4242      C     99     40      -      -      -      -  17990   python\n    3           -      -      -      -      -      -      -      -      -   -\nAPPS_INFO\n2, 4242\n3, 5151\nPROC_INFO\n 4242 alice\n 5151 bob\nEND\n",
+  "output": [
+   {
+    "index": 0,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 1,
+    "mem_free_mb": 46067,
+    "mem_total_mb": 46068,
+    "utilization_pct": 0,
+    "processes": [],
+    "is_free": true,
+    "mem_total_gb": 48.305799168
+   },
+   {
+    "index": 1,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 300,
+    "mem_free_mb": 45768,
+    "mem_total_mb": 46068,
+    "utilization_pct": 0,
+    "processes": [],
+    "is_free": false,
+    "mem_total_gb": 48.305799168
+   },
+   {
+    "index": 2,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 18000,
+    "mem_free_mb": 28068,
+    "mem_total_mb": 46068,
+    "utilization_pct": 99,
+    "processes": [
+     {
+      "pid": 4242,
+      "user": "alice",
+      "mem_used_mb": 17990,
+      "command": "python"
+     }
+    ],
+    "is_free": false,
+    "mem_total_gb": 48.305799168
+   },
+   {
+    "index": 3,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 2,
+    "mem_free_mb": 46066,
+    "mem_total_mb": 46068,
+    "utilization_pct": 0,
+    "processes": [
+     {
+      "pid": 5151,
+      "user": "bob",
+      "mem_used_mb": 0,
+      "command": "unknown"
+     }
+    ],
+    "is_free": false,
+    "mem_total_gb": 48.305799168
+   }
+  ]
+ },
+ {
+  "name": "old_pmon_crlf",
+  "input": "GPU_INFO\r\n0, NVIDIA A40, 1, 46067, 46068, 0, Default\r\n1, NVIDIA A40, 300, 45768, 46068, 0, Default\r\n2, NVIDIA A40, 18000, 28068, 46068, 99, Default\r\n3, NVIDIA A40, 2, 46066, 46068, 0, Default\r\nPMON_INFO\r\n# gpu         pid   type     sm    mem    enc    dec    jpg    ofa     fb   command\r\n# Idx           #    C/G      %      %      %      %      %      %     MB   name\r\n    0           -      -      -      -      -      -      -      -      -   -\r\n    1           -      -      -      -      -      -      -      -      -   -\r\n    2       4242     C    99    40     -     -  17990   python\r\n    3           -      -      -      -      -      -      -      -      -   -\r\nAPPS_INFO\r\n2, 4242\r\n3, 5151\r\nPROC_INFO\r\n 4242 alice\r\n 5151 bob\r\nEND\r\n",
+  "output": [
+   {
+    "index": 0,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 1,
+    "mem_free_mb": 46067,
+    "mem_total_mb": 46068,
+    "utilization_pct": 0,
+    "processes": [],
+    "is_free": true,
+    "mem_total_gb": 48.305799168
+   },
+   {
+    "index": 1,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 300,
+    "mem_free_mb": 45768,
+    "mem_total_mb": 46068,
+    "utilization_pct": 0,
+    "processes": [],
+    "is_free": false,
+    "mem_total_gb": 48.305799168
+   },
+   {
+    "index": 2,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 18000,
+    "mem_free_mb": 28068,
+    "mem_total_mb": 46068,
+    "utilization_pct": 99,
+    "processes": [
+     {
+      "pid": 4242,
+      "user": "alice",
+      "mem_used_mb": 17990,
+      "command": "python"
+     }
+    ],
+    "is_free": false,
+    "mem_total_gb": 48.305799168
+   },
+   {
+    "index": 3,
+    "name": "NVIDIA A40",
+    "mem_used_mb": 2,
+    "mem_free_mb": 46066,
+    "mem_total_mb": 46068,
+    "utilization_pct": 0,
+    "processes": [
+     {
+      "pid": 5151,
+      "user": "bob",
+      "mem_used_mb": 0,
+      "command": "unknown"
+     }
+    ],
+    "is_free": false,
+    "mem_total_gb": 48.305799168
+   }
+  ]
+ },
+ {
+  "name": "empty",
+  "input": "",
+  "output": []
+ },
+ {
+  "name": "no_nvidia_smi",
+  "input": "NO_NVIDIA_SMI\n",
+  "output": []
+ },
+ {
+  "name": "util_na_and_junk",
+  "input": "GPU_INFO\n0, NVIDIA RTX A5000, 10, 24554, 24564, [N/A], Default\n1, NVIDIA RTX A5000, 23000, 1564, 24564, 87, Exclusive_Process\nx, broken, line\n2, short\nPMON_INFO\n    1       777      C     87     40   23000   a_very_long_command_name_that_goes_on_and_on_and_on_for_more_than_sixty_chars\n    9       888      C      0      0      5   ghost\nAPPS_INFO\n1, 999\nPROC_INFO\n  777 carol\nEND\ntrailing junk\n",
+  "output": [
+   {
+    "index": 0,
+    "name": "NVIDIA RTX A5000",
+    "mem_used_mb": 10,
+    "mem_free_mb": 24554,
+    "mem_total_mb": 24564,
+    "utilization_pct": -1,
+    "processes": [],
+    "is_free": true,
+    "mem_total_gb": 25.757220864
+   },
+   {
+    "index": 1,
+    "name": "NVIDIA RTX A5000",
+    "mem_used_mb": 23000,
+    "mem_free_mb": 1564,
+    "mem_total_mb": 24564,
+    "utilization_pct": 87,
+    "processes": [
+     {
+      "pid": 777,
+      "user": "carol",
+      "mem_used_mb": 23000,
+      "command": "a_very_long_command_name_that_goes_on_and_on_and_on_for_more"
+     },
+     {
+      "pid": 999,
+      "user": "?",
+      "mem_used_mb": 0,
+      "command": "unknown"
+     }
+    ],
+    "is_free": false,
+    "mem_total_gb": 25.757220864
+   }
+  ]
+ }
+]

@@ -1,0 +1,14 @@
+[package]
+name = "gpu-spooler-cli"
+description = "The `task` command: queue jobs onto SSH-reachable GPU servers"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "task"
+path = "src/main.rs"
+
+[dependencies]
+gpu-spooler = { path = "../gpu-spooler" }

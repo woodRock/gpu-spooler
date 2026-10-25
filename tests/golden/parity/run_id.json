@@ -1,0 +1,29 @@
+[
+ {
+  "name": "12/0",
+  "input": {
+   "id": 12,
+   "submitted_at": 1761400000.5,
+   "retry_count": 0
+  },
+  "output": "2025-10-25-spooler-12"
+ },
+ {
+  "name": "12/None",
+  "input": {
+   "id": 12,
+   "submitted_at": 1761400000.5,
+   "retry_count": null
+  },
+  "output": "2025-10-25-spooler-12"
+ },
+ {
+  "name": "3/2",
+  "input": {
+   "id": 3,
+   "submitted_at": 1735689599.9,
+   "retry_count": 2
+  },
+  "output": "2024-12-31-spooler-3-3"
+ }
+]

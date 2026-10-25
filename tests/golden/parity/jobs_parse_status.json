@@ -1,0 +1,76 @@
+[
+ {
+  "name": "complete",
+  "input": "@@JOB 1-a\nSTATE running\nSIZE 12\nDATA aGVsbG8gd29ybGQK\n@@JOB 2-b\nSTATE done 3\nSIZE 0\nDATA \n@@JOB 3-c\nSTATE missing\nSIZE 0\nDATA\n@@JOB 4-d\nSTATE gone\nSIZE \nDATA \n@@JOB 5-e\nSTATE done\nSIZE x\nDATA \n@@JOB 6-f\nSTATE done oops\nSIZE 1\nDATA \n@@END\n",
+  "output": {
+   "1-a": {
+    "state": "running",
+    "rc": null,
+    "size": 12,
+    "data": "hello world\n"
+   },
+   "2-b": {
+    "state": "done",
+    "rc": 3,
+    "size": 0,
+    "data": ""
+   },
+   "3-c": {
+    "state": "missing",
+    "rc": null,
+    "size": 0,
+    "data": ""
+   },
+   "4-d": {
+    "state": "gone",
+    "rc": null,
+    "size": 0,
+    "data": ""
+   },
+   "5-e": {
+    "state": "done",
+    "rc": 1,
+    "size": 0,
+    "data": ""
+   },
+   "6-f": {
+    "state": "done",
+    "rc": 1,
+    "size": 1,
+    "data": ""
+   }
+  }
+ },
+ {
+  "name": "cut_short",
+  "input": "@@JOB 1-a\nSTATE running\nSIZE 12\nDATA aGVsbG8=\n",
+  "output": null
+ },
+ {
+  "name": "bad_base64",
+  "input": "@@JOB 1-a\nSTATE running\nSIZE 1\nDATA !!!notbase64\n@@END\n",
+  "output": null
+ },
+ {
+  "name": "noise_before_job",
+  "input": "Welcome to cuda01\nSTATE done 0\n@@JOB 1-a\nSTATE done 0\nSIZE 0\nDATA \n@@END\nafter\n",
+  "output": {
+   "1-a": {
+    "state": "done",
+    "rc": 0,
+    "size": 0,
+    "data": ""
+   }
+  }
+ },
+ {
+  "name": "empty",
+  "input": "",
+  "output": null
+ },
+ {
+  "name": "only_end",
+  "input": "@@END\n",
+  "output": {}
+ }
+]

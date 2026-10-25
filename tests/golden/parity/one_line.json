@@ -1,0 +1,22 @@
+[
+ {
+  "name": "'a\\nb'",
+  "input": "a\nb",
+  "output": "a b"
+ },
+ {
+  "name": "'  lots   of\\t\\tspace  '",
+  "input": "  lots   of\t\tspace  ",
+  "output": "lots of space"
+ },
+ {
+  "name": "''",
+  "input": "",
+  "output": ""
+ },
+ {
+  "name": "'x\\r\\ny'",
+  "input": "x\r\ny",
+  "output": "x y"
+ }
+]

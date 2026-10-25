@@ -1,0 +1,74 @@
+[
+ {
+  "name": "plain",
+  "input": {
+   "key": "12-a1b2c3",
+   "wdir": "/vol/me/proj",
+   "gpus": "0",
+   "command": "python3 train.py --epochs 5",
+   "delay": false,
+   "probe": null
+  },
+  "output": "jobs/launch.plain.sh"
+ },
+ {
+  "name": "multi_gpu_delay",
+  "input": {
+   "key": "3-000001",
+   "wdir": "/vol/me/proj",
+   "gpus": "1,2",
+   "command": "torchrun --nproc 2 t.py",
+   "delay": true,
+   "probe": null
+  },
+  "output": "jobs/launch.multi_gpu_delay.sh"
+ },
+ {
+  "name": "home_path",
+  "input": {
+   "key": "4-ffffff",
+   "wdir": "~/work dir",
+   "gpus": "",
+   "command": "echo 'quoted' && ls \"$HOME\"",
+   "delay": false,
+   "probe": null
+  },
+  "output": "jobs/launch.home_path.sh"
+ },
+ {
+  "name": "tilde_only",
+  "input": {
+   "key": "5-abcdef",
+   "wdir": "~",
+   "gpus": "0",
+   "command": "true",
+   "delay": false,
+   "probe": null
+  },
+  "output": "jobs/launch.tilde_only.sh"
+ },
+ {
+  "name": "probe",
+  "input": {
+   "key": "6-123456",
+   "wdir": "/vol/me/it's",
+   "gpus": "0",
+   "command": "PYTHONPATH=src python3 -m x",
+   "delay": false,
+   "probe": "PYTHONPATH=src python3"
+  },
+  "output": "jobs/launch.probe.sh"
+ },
+ {
+  "name": "multiline",
+  "input": {
+   "key": "7-654321",
+   "wdir": "/x",
+   "gpus": "3",
+   "command": "for i in 1 2; do\n  echo $i\ndone",
+   "delay": false,
+   "probe": null
+  },
+  "output": "jobs/launch.multiline.sh"
+ }
+]

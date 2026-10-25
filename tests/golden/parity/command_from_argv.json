@@ -1,0 +1,46 @@
+[
+ {
+  "name": "python3 train.py && echo done",
+  "input": [
+   "python3 train.py && echo done"
+  ],
+  "output": "python3 train.py && echo done"
+ },
+ {
+  "name": "python3 train.py --lr 3e-4",
+  "input": [
+   "python3",
+   "train.py",
+   "--lr",
+   "3e-4"
+  ],
+  "output": "python3 train.py --lr 3e-4"
+ },
+ {
+  "name": "bash -c echo $HOME",
+  "input": [
+   "bash",
+   "-c",
+   "echo $HOME"
+  ],
+  "output": "bash -c 'echo $HOME'"
+ },
+ {
+  "name": "echo it's ",
+  "input": [
+   "echo",
+   "it's",
+   ""
+  ],
+  "output": "echo 'it'\"'\"'s' ''"
+ },
+ {
+  "name": "./run.sh --name a b",
+  "input": [
+   "./run.sh",
+   "--name",
+   "a b"
+  ],
+  "output": "./run.sh --name 'a b'"
+ }
+]

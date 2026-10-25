@@ -1,0 +1,54 @@
+[
+ {
+  "name": "pid_and_git",
+  "input": "TS_GIT 0123456789abcdef0123456789abcdef01234567 2\nTS_DIRTY src/a.py\nTS_DIRTY \"we ird.py\"\nTS_DIRTY old.py -> new.py\nTS_PID 4242\n",
+  "output": {
+   "pid": 4242,
+   "git": [
+    "0123456789abcdef0123456789abcdef01234567",
+    2
+   ],
+   "dirty": [
+    "src/a.py",
+    "we ird.py",
+    "new.py"
+   ]
+  }
+ },
+ {
+  "name": "pid_only",
+  "input": "noise\nTS_PID 17\n",
+  "output": {
+   "pid": 17,
+   "git": null,
+   "dirty": []
+  }
+ },
+ {
+  "name": "bad_pid",
+  "input": "TS_PID abc\nTS_PID 5\n",
+  "output": {
+   "pid": null,
+   "git": null,
+   "dirty": []
+  }
+ },
+ {
+  "name": "git_bad_count",
+  "input": "TS_GIT abc x\nTS_PID 1\n",
+  "output": {
+   "pid": 1,
+   "git": null,
+   "dirty": []
+  }
+ },
+ {
+  "name": "nothing",
+  "input": "",
+  "output": {
+   "pid": null,
+   "git": null,
+   "dirty": []
+  }
+ }
+]

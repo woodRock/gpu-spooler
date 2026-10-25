@@ -1,0 +1,1095 @@
+[
+ {
+  "name": "setup",
+  "input": {
+   "results": {
+    "cuda02": {
+     "name": "cuda02",
+     "reachable": true,
+     "error": "",
+     "gpus": [
+      {
+       "index": 0,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 1,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 300,
+       "mem_free_mb": 45768,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 2,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 18000,
+       "mem_free_mb": 28068,
+       "mem_total_mb": 46068,
+       "utilization_pct": 99,
+       "processes": [
+        {
+         "pid": 4242,
+         "user": "alice",
+         "mem_used_mb": 17990,
+         "command": "python"
+        }
+       ]
+      },
+      {
+       "index": 3,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 2,
+       "mem_free_mb": 46066,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": [
+        {
+         "pid": 5151,
+         "user": "bob",
+         "mem_used_mb": 0,
+         "command": "unknown"
+        }
+       ]
+      }
+     ]
+    },
+    "cuda01": {
+     "name": "cuda01",
+     "reachable": true,
+     "error": "",
+     "gpus": [
+      {
+       "index": 0,
+       "name": "NVIDIA RTX A5000",
+       "mem_used_mb": 10,
+       "mem_free_mb": 24554,
+       "mem_total_mb": 24564,
+       "utilization_pct": -1,
+       "processes": []
+      },
+      {
+       "index": 1,
+       "name": "NVIDIA RTX A5000",
+       "mem_used_mb": 23000,
+       "mem_free_mb": 1564,
+       "mem_total_mb": 24564,
+       "utilization_pct": 87,
+       "processes": [
+        {
+         "pid": 777,
+         "user": "carol",
+         "mem_used_mb": 23000,
+         "command": "a_very_long_command_name_that_goes_on_and_on_and_on_for_more"
+        },
+        {
+         "pid": 999,
+         "user": "?",
+         "mem_used_mb": 0,
+         "command": "unknown"
+        }
+       ]
+      }
+     ]
+    },
+    "cuda14": {
+     "name": "cuda14",
+     "reachable": true,
+     "error": "",
+     "gpus": [
+      {
+       "index": 0,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 1,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 2,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      },
+      {
+       "index": 3,
+       "name": "NVIDIA A40",
+       "mem_used_mb": 1,
+       "mem_free_mb": 46067,
+       "mem_total_mb": 46068,
+       "utilization_pct": 0,
+       "processes": []
+      }
+     ]
+    },
+    "cuda20": {
+     "name": "cuda20",
+     "reachable": false,
+     "error": "ssh: connect to host cuda20 port 22: Connection refused and a long tail so the error is cut at sixty characters for the table",
+     "gpus": []
+    },
+    "local": {
+     "name": "local",
+     "reachable": true,
+     "error": "",
+     "gpus": []
+    }
+   },
+   "running": [
+    {
+     "server": "cuda14",
+     "gpu_indices": "0,1",
+     "num_gpus": 2
+    },
+    {
+     "server": "local",
+     "gpu_indices": "",
+     "num_gpus": 0
+    },
+    {
+     "server": "gone",
+     "gpu_indices": "0",
+     "num_gpus": 1
+    }
+   ]
+  },
+  "output": null
+ },
+ {
+  "name": "fill_small_first/budget=None",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 3,
+     "num_gpus": 2,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 4,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    }
+   ],
+   "budget": null
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda01",
+     [
+      0
+     ]
+    ],
+    [
+     2,
+     "cuda02",
+     [
+      0
+     ]
+    ],
+    [
+     3,
+     "cuda14",
+     [
+      2,
+      3
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "fill_small_first/budget=2",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 3,
+     "num_gpus": 2,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 4,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    }
+   ],
+   "budget": 2
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda01",
+     [
+      0
+     ]
+    ],
+    [
+     2,
+     "cuda02",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "cpu_jobs/budget=None",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 0,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 0,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 3,
+     "num_gpus": 0,
+     "min_mem": 0,
+     "host_spec": "cuda01",
+     "gpu_type": null
+    }
+   ],
+   "budget": null
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "local",
+     []
+    ]
+   ]
+  }
+ },
+ {
+  "name": "cpu_jobs/budget=2",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 0,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 0,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 3,
+     "num_gpus": 0,
+     "min_mem": 0,
+     "host_spec": "cuda01",
+     "gpu_type": null
+    }
+   ],
+   "budget": 2
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "local",
+     []
+    ]
+   ]
+  }
+ },
+ {
+  "name": "min_mem/budget=None",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 40,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 100,
+     "host_spec": null,
+     "gpu_type": null
+    }
+   ],
+   "budget": null
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda02",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "min_mem/budget=2",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 40,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 100,
+     "host_spec": null,
+     "gpu_type": null
+    }
+   ],
+   "budget": 2
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda02",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "gpu_type/budget=None",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": "A40"
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": "rtx a5000"
+    },
+    {
+     "id": 3,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": "L4"
+    }
+   ],
+   "budget": null
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda02",
+     [
+      0
+     ]
+    ],
+    [
+     2,
+     "cuda01",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "gpu_type/budget=2",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": "A40"
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": "rtx a5000"
+    },
+    {
+     "id": 3,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": "L4"
+    }
+   ],
+   "budget": 2
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda02",
+     [
+      0
+     ]
+    ],
+    [
+     2,
+     "cuda01",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "host_spec/budget=None",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": "cuda14",
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": "nope",
+     "gpu_type": null
+    },
+    {
+     "id": 3,
+     "num_gpus": 4,
+     "min_mem": 0,
+     "host_spec": "g",
+     "gpu_type": null
+    }
+   ],
+   "budget": null
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda14",
+     [
+      2
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "host_spec/budget=2",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": "cuda14",
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": "nope",
+     "gpu_type": null
+    },
+    {
+     "id": 3,
+     "num_gpus": 4,
+     "min_mem": 0,
+     "host_spec": "g",
+     "gpu_type": null
+    }
+   ],
+   "budget": 2
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     1,
+     "cuda14",
+     [
+      2
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "too_big/budget=None",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 5,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    }
+   ],
+   "budget": null
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     2,
+     "cuda01",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ },
+ {
+  "name": "too_big/budget=2",
+  "input": {
+   "queue": [
+    {
+     "id": 1,
+     "num_gpus": 5,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    },
+    {
+     "id": 2,
+     "num_gpus": 1,
+     "min_mem": 0,
+     "host_spec": null,
+     "gpu_type": null
+    }
+   ],
+   "budget": 2
+  },
+  "output": {
+   "states": {
+    "cuda02": {
+     "free": {
+      "0": true,
+      "1": false,
+      "2": false,
+      "3": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "cuda01": {
+     "free": {
+      "0": true,
+      "1": false
+     },
+     "cpu_free": 0,
+     "mem_gb": 25.757220864
+    },
+    "cuda14": {
+     "free": {
+      "0": false,
+      "1": false,
+      "2": true,
+      "3": true
+     },
+     "cpu_free": 0,
+     "mem_gb": 48.305799168
+    },
+    "local": {
+     "free": {},
+     "cpu_free": 1,
+     "mem_gb": 0.0
+    }
+   },
+   "assignments": [
+    [
+     2,
+     "cuda01",
+     [
+      0
+     ]
+    ]
+   ]
+  }
+ }
+]

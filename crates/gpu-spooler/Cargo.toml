@@ -1,0 +1,15 @@
+[package]
+name = "gpu-spooler"
+description = "Queue jobs onto SSH-reachable GPU servers (library: config, ssh transport, GPU queries, queue)"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lib]
+name = "gpu_spooler"
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"

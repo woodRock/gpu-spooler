@@ -1,0 +1,45 @@
+[
+ {
+  "name": "status",
+  "input": [
+   [
+    "1-aaaaaa",
+    0
+   ],
+   [
+    "22-bbbbbb",
+    1048576
+   ],
+   [
+    "3-c'c",
+    5
+   ]
+  ],
+  "output": "jobs/status.sh"
+ },
+ {
+  "name": "kill",
+  "input": [
+   "12-a1b2c3",
+   10
+  ],
+  "output": "jobs/kill.sh"
+ },
+ {
+  "name": "kill.grace3",
+  "input": [
+   "12-a1b2c3",
+   3
+  ],
+  "output": "jobs/kill.grace3.sh"
+ },
+ {
+  "name": "cleanup",
+  "input": [
+   1,
+   22,
+   333
+  ],
+  "output": "jobs/cleanup.sh"
+ }
+]

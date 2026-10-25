@@ -1,0 +1,16 @@
+
+[1mSERVER         GPU  GPU NAME                   MEM USED  MEM TOT   UTIL  STATUS    USER          PROCESS / SCRIPT[0m
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+cuda01           0  RTX A5000                    0.0 GB  24.0 GB    N/A  [92mFREE[0m                   
+cuda01           1  RTX A5000                   22.5 GB  24.0 GB    87%  [91mIN USE[0m   [96mcarol[0m        a_very_long_command_name_that_goes_on_and_on_and_on_for_more
+                                                                                           [96m?[0m            unknown
+cuda02           0  A40                          0.0 GB  45.0 GB     0%  [92mFREE[0m                   
+cuda02           1  A40                          0.3 GB  45.0 GB     0%  [91mIN USE[0m   [96m?[0m            ?
+cuda02           2  A40                         17.6 GB  45.0 GB    99%  [91mIN USE[0m   [96malice[0m        python
+cuda02           3  A40                          0.0 GB  45.0 GB     0%  [91mIN USE[0m   [96mbob[0m          unknown
+cuda14           0  A40                          0.0 GB  45.0 GB     0%  [92mFREE[0m                   
+cuda14           1  A40                          0.0 GB  45.0 GB     0%  [92mFREE[0m                   
+cuda14           2  A40                          0.0 GB  45.0 GB     0%  [92mFREE[0m                   
+cuda14           3  A40                          0.0 GB  45.0 GB     0%  [92mFREE[0m                   
+cuda20         [91mUNREACHABLE[0m  ssh: connect to host cuda20 port 22: Connection refused and 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────

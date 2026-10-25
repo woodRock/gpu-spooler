@@ -1,0 +1,42 @@
+[
+ {
+  "name": "short/10",
+  "input": [
+   "short",
+   10
+  ],
+  "output": "short"
+ },
+ {
+  "name": "exactly10!/10",
+  "input": [
+   "exactly10!",
+   10
+  ],
+  "output": "exactly10!"
+ },
+ {
+  "name": "this is too long/10",
+  "input": [
+   "this is too long",
+   10
+  ],
+  "output": "this is t…"
+ },
+ {
+  "name": "ünïcödé text/5",
+  "input": [
+   "ünïcödé text",
+   5
+  ],
+  "output": "ünïc…"
+ },
+ {
+  "name": "/3",
+  "input": [
+   "",
+   3
+  ],
+  "output": ""
+ }
+]

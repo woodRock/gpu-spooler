@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/gpu-spooler", "crates/gpu-spooler-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.com/woodRock/gpu-spooler"
+license = "MIT"
+
+[profile.release]
+lto = true
+strip = true
