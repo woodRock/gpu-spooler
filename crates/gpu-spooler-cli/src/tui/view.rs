@@ -214,7 +214,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     } else {
         let [list, bar, pane] =
             Layout::vertical([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)]).areas(body);
-        let mut state = TableState::default().with_selected(Some(app.selected).filter(|_| !app.rows.is_empty()));
+        let mut state = TableState::default().with_selected((!app.rows.is_empty()).then_some(app.selected));
         f.render_stateful_widget(table(app), list, &mut state);
         f.render_widget(Paragraph::new(tabs(app)), bar);
         let inner = Rect { x: pane.x + 1, width: pane.width.saturating_sub(2), ..pane };
