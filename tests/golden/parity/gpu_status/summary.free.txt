@@ -1,0 +1,11 @@
+
+[1mSERVER         GPU TYPE                 GPUs  FREE   VRAM FREE  VRAM TOTAL  USERS / PROCESSES[0m
+─────────────────────────────────────────────────────────────────────────────────────────────
+cuda01         RTX A5000                   2    [93m1[0m     25.5 GB     48.0 GB  [96m?[0m: unknown; [96mcarol[0m: a_very_long_command_name_that_goes_on_and_on_and_on_for_more
+cuda02         A40*                        4    [93m1[0m    162.1 GB    180.0 GB  [96malice[0m: python; [96mbob[0m: unknown
+cuda14         A40                         4    [92m4[0m    179.9 GB    180.0 GB  [2midle[0m
+cuda20         [91mUNREACHABLE[0m               ssh: connect to host cuda20 port 22: Connection refused and 
+─────────────────────────────────────────────────────────────────────────────────────────────
+[93m* gpu_type in {HOME}/.gpu-spooler/hosts.toml disagrees with nvidia-smi:[0m
+[93m    cuda02         configured 'RTX A6000', reports 'A40'[0m
+[93m  --gpu-type and -m use what nvidia-smi reports; update or remove these gpu_type (and gpu_mem_gb/num_gpus) entries.[0m

@@ -1,0 +1,37 @@
+[
+ {
+  "name": "NVIDIA A40",
+  "input": "NVIDIA A40",
+  "output": "A40"
+ },
+ {
+  "name": "NVIDIA  RTX A5000",
+  "input": "NVIDIA  RTX A5000",
+  "output": "RTX A5000"
+ },
+ {
+  "name": "nvidia l4",
+  "input": "nvidia l4",
+  "output": "l4"
+ },
+ {
+  "name": "Quadro RTX 6000",
+  "input": "Quadro RTX 6000",
+  "output": "Quadro RTX 6000"
+ },
+ {
+  "name": "  NVIDIA   RTX 6000 Ada Generation ",
+  "input": "  NVIDIA   RTX 6000 Ada Generation ",
+  "output": "RTX 6000 Ada Generation"
+ },
+ {
+  "name": "NVIDIA",
+  "input": "NVIDIA",
+  "output": "NVIDIA"
+ },
+ {
+  "name": "NVIDIAX",
+  "input": "NVIDIAX",
+  "output": "NVIDIAX"
+ }
+]

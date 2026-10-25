@@ -625,3 +625,11 @@ dev/fake_cluster.sh down
 ```
 
 The sshd logs in `/tmp/ts-fake-cluster/run/sshd_*.log` show the traffic through each hop.
+
+**Rust port (in progress).** A Cargo workspace (`crates/gpu-spooler`, the library, and `crates/gpu-spooler-cli`, the `task` binary) is replacing the Python package one step at a time; until it's done, the Python version is the one that's installed. Its tests compare against fixtures generated from the Python code, so what is sent to the servers stays byte for byte the same:
+
+```bash
+cargo test                                  # Rust tests, including the golden fixtures
+.venv/bin/python dev/gen_golden.py          # regenerate tests/golden/parity/ after changing the Python code
+.venv/bin/python dev/gen_golden.py --check  # CI: are the fixtures current?
+```

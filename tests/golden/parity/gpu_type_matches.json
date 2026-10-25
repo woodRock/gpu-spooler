@@ -1,0 +1,74 @@
+[
+ {
+  "name": "None ~ anything",
+  "input": [
+   null,
+   "anything"
+  ],
+  "output": true
+ },
+ {
+  "name": "'' ~ anything",
+  "input": [
+   "",
+   "anything"
+  ],
+  "output": true
+ },
+ {
+  "name": "'rtx a5000' ~ NVIDIA RTX A5000",
+  "input": [
+   "rtx a5000",
+   "NVIDIA RTX A5000"
+  ],
+  "output": true
+ },
+ {
+  "name": "'NVIDIA RTX A5000' ~ RTX A5000",
+  "input": [
+   "NVIDIA RTX A5000",
+   "RTX A5000"
+  ],
+  "output": true
+ },
+ {
+  "name": "'RTX 6000' ~ NVIDIA RTX 6000 Ada Generation",
+  "input": [
+   "RTX 6000",
+   "NVIDIA RTX 6000 Ada Generation"
+  ],
+  "output": false
+ },
+ {
+  "name": "'RTX 6000' ~ Quadro RTX 6000",
+  "input": [
+   "RTX 6000",
+   "Quadro RTX 6000"
+  ],
+  "output": false
+ },
+ {
+  "name": "'A40, RTX A5000' ~ NVIDIA A40",
+  "input": [
+   "A40, RTX A5000",
+   "NVIDIA A40"
+  ],
+  "output": true
+ },
+ {
+  "name": "' , ' ~ A40",
+  "input": [
+   " , ",
+   "A40"
+  ],
+  "output": false
+ },
+ {
+  "name": "'RTX A5000' ~ NVIDIA RTX PRO 5000 Blackwell",
+  "input": [
+   "RTX A5000",
+   "NVIDIA RTX PRO 5000 Blackwell"
+  ],
+  "output": false
+ }
+]

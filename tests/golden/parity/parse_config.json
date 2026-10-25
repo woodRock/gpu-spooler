@@ -1,0 +1,2146 @@
+[
+ {
+  "name": "builtin",
+  "input": null,
+  "output": {
+   "hosts": [
+    {
+     "name": "cuda-small0",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A4000",
+     "num_gpus": 4,
+     "gpu_mem_gb": 16,
+     "cpu_cores": 16,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "cuda-small1",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX 4000 Ada Generation",
+     "num_gpus": 3,
+     "gpu_mem_gb": 20,
+     "cpu_cores": 16,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda00",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX 6000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda01",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda02",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda03",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda04",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda05",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX PRO 5000 Blackwell",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda06",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX PRO 5000 Blackwell",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 16,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda07",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda08",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda09",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX PRO 4000 Blackwell",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda10",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 128
+    },
+    {
+     "name": "cuda11",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 112
+    },
+    {
+     "name": "cuda12",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda13",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda14",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "A40",
+     "num_gpus": 4,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda15",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "A40",
+     "num_gpus": 4,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda16",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 32,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "cuda17",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "Quadro RTX 6000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda18",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 32,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "cuda19",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "L4",
+     "num_gpus": 4,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 64,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda20",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "L40S",
+     "num_gpus": 4,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 384
+    },
+    {
+     "name": "cuda21",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX 6000 Ada Generation",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 48,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda22",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX 6000 Ada Generation",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 48,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "gryphon",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 1,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "red-tomatoes",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "piccolo",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 20,
+     "sys_mem_gb": 128
+    },
+    {
+     "name": "the-villa",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 1,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "bordeaux",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": "Quadro RTX 6000",
+     "num_gpus": 1,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 20,
+     "sys_mem_gb": 64
+    }
+   ],
+   "jumps": {},
+   "mode": "direct",
+   "probe": null,
+   "identity_file": null,
+   "control_persist": "10m",
+   "jump_control_persist": "12h",
+   "extra_options": [],
+   "builtin": true,
+   "max_gpus": null,
+   "taura": "auto",
+   "detective_history": null,
+   "idle_minutes": 30,
+   "workers": [
+    "cuda-small0",
+    "cuda-small1",
+    "cuda00",
+    "cuda01",
+    "cuda02",
+    "cuda03",
+    "cuda04",
+    "cuda05",
+    "cuda06",
+    "cuda07",
+    "cuda08",
+    "cuda09",
+    "cuda10",
+    "cuda11",
+    "cuda12",
+    "cuda13",
+    "cuda14",
+    "cuda15",
+    "cuda16",
+    "cuda17",
+    "cuda18",
+    "cuda19",
+    "cuda20",
+    "cuda21",
+    "cuda22",
+    "gryphon",
+    "red-tomatoes",
+    "piccolo",
+    "the-villa",
+    "bordeaux"
+   ]
+  }
+ },
+ {
+  "name": "template",
+  "input": "# gpu-spooler host configuration.\n# Docs: see the \"Configuration\" section of the README.\n\n[network]\n# auto   – probe the network: connect directly when on campus, via the jump\n#          chain otherwise (result cached for 5 minutes)\n# direct – always connect directly\n# jump   – always go through the jump chain\nmode = \"auto\"\n# probe = \"cuda00.ecs.vuw.ac.nz\"   # default: first worker that has a jump\n\n[limits]\n# At most this many GPUs in use by your tasks at once, across all hosts (queued\n# tasks wait). Leave unset for no limit.\n# max_gpus = 5\n\n# Show GPUs held but idle in `task gpus` and flag your idle tasks in `task list`,\n# from gpu-detective's history (run `detective watch` somewhere that shares\n# this home directory). Uncomment to turn on.\n# [detective]\n# history = \"~/.gpu-detective/history.db\"   # default; GPU_DETECTIVE_DB also works\n# idle_minutes = 30                         # under 5% utilisation for this long\n\n[ssh]\n# identity_file = \"~/.ssh/id_ed25519\"\ncontrol_persist = \"10m\"        # how long worker connections stay open\njump_control_persist = \"12h\"   # how long jump-hop connections stay open\nextra_options = []             # raw \"Key=Value\" ssh options\n\n# Off-campus route: laptop → entry → barretts → cudaXX.\n[jumps.ecs]\nchain = [\"woodj4@entry.ecs.vuw.ac.nz\", \"woodj4@barretts.ecs.vuw.ac.nz\"]\n\n[groups.ecs]\nuser = \"woodj4\"\ndomain = \"ecs.vuw.ac.nz\"       # hostname = \"<name>.<domain>\"\njump = \"ecs\"\ncpu_slots = 0\n# When you submit from a git repo that isn't on an ECS filesystem (e.g. on your\n# laptop), the job runs in <remote_root>/<repo name>/<same subdirectory>.\n# `task sync` pushes your working tree there; submit warns if it's stale.\nremote_root = \"/vol/ecrg-solar/woodj4\"\n# Translate other local working directories to their path on ECS, e.g. when\n# submitting from a laptop checkout that mirrors an ECS directory:\n# path_map = [ { local = \"~/code\", remote = \"/vol/ecrg-solar/woodj4\" } ]\nhosts = [\n    \"cuda-small0\",\n    \"cuda-small1\",\n    \"cuda00\",\n    \"cuda01\",\n    \"cuda02\",\n    \"cuda03\",\n    \"cuda04\",\n    \"cuda05\",\n    \"cuda06\",\n    \"cuda07\",\n    \"cuda08\",\n    \"cuda09\",\n    \"cuda10\",\n    \"cuda11\",\n    \"cuda12\",\n    \"cuda13\",\n    \"cuda14\",\n    \"cuda15\",\n    \"cuda16\",\n    \"cuda17\",\n    \"cuda18\",\n    \"cuda19\",\n    \"cuda20\",\n    \"cuda21\",\n    \"cuda22\",\n    \"gryphon\",\n    \"red-tomatoes\",\n    \"piccolo\",\n    \"the-villa\",\n    \"bordeaux\",\n]\n\n# Run jobs on this machine as well. -G 0 jobs use cpu_slots.\n# [hosts.local]\n# kind = \"local\"\n# cpu_slots = 2\n\n# Per-host details, used for display and as a fallback for -m/--min-mem when a\n# host has not been queried yet (what nvidia-smi reports wins; gpu-status warns\n# when they disagree). Set enabled = false to stop dispatching to a host.\n[hosts.cuda-small0]\ngpu_type = \"RTX A4000\"\nnum_gpus = 4\ngpu_mem_gb = 16\ncpu_cores = 16\nsys_mem_gb = 192\n\n[hosts.cuda-small1]\ngpu_type = \"RTX 4000 Ada Generation\"\nnum_gpus = 3\ngpu_mem_gb = 20\ncpu_cores = 16\nsys_mem_gb = 144\n\n[hosts.cuda00]\ngpu_type = \"RTX 6000\"\nnum_gpus = 2\ngpu_mem_gb = 24\ncpu_cores = 32\nsys_mem_gb = 96\n\n[hosts.cuda01]\ngpu_type = \"RTX A5000\"\nnum_gpus = 2\ngpu_mem_gb = 24\ncpu_cores = 16\nsys_mem_gb = 64\n\n[hosts.cuda02]\ngpu_type = \"RTX A5000\"\nnum_gpus = 2\ngpu_mem_gb = 24\ncpu_cores = 16\nsys_mem_gb = 64\n\n[hosts.cuda03]\ngpu_type = \"RTX A5000\"\nnum_gpus = 2\ngpu_mem_gb = 24\ncpu_cores = 16\nsys_mem_gb = 64\n\n[hosts.cuda04]\ngpu_type = \"RTX A5000\"\nnum_gpus = 2\ngpu_mem_gb = 24\ncpu_cores = 16\nsys_mem_gb = 64\n\n[hosts.cuda05]\ngpu_type = \"RTX PRO 5000 Blackwell\"\nnum_gpus = 2\ngpu_mem_gb = 48\ncpu_cores = 24\nsys_mem_gb = 144\n\n[hosts.cuda06]\ngpu_type = \"RTX PRO 5000 Blackwell\"\nnum_gpus = 2\ngpu_mem_gb = 48\ncpu_cores = 16\nsys_mem_gb = 144\n\n[hosts.cuda07]\ngpu_type = \"RTX A5000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 24\nsys_mem_gb = 144\n\n[hosts.cuda08]\ngpu_type = \"RTX A5000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 24\nsys_mem_gb = 144\n\n[hosts.cuda09]\ngpu_type = \"RTX PRO 4000 Blackwell\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 32\nsys_mem_gb = 96\n\n[hosts.cuda10]\ngpu_type = \"RTX A5000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 24\nsys_mem_gb = 128\n\n[hosts.cuda11]\ngpu_type = \"RTX A5000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 24\nsys_mem_gb = 112\n\n[hosts.cuda12]\ngpu_type = \"RTX A5000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 32\nsys_mem_gb = 96\n\n[hosts.cuda13]\ngpu_type = \"RTX A5000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 32\nsys_mem_gb = 96\n\n[hosts.cuda14]\ngpu_type = \"A40\"\nnum_gpus = 4\ngpu_mem_gb = 48\ncpu_cores = 64\nsys_mem_gb = 256\n\n[hosts.cuda15]\ngpu_type = \"A40\"\nnum_gpus = 4\ngpu_mem_gb = 48\ncpu_cores = 64\nsys_mem_gb = 256\n\n[hosts.cuda16]\ngpu_type = \"RTX A6000\"\nnum_gpus = 3\ngpu_mem_gb = 48\ncpu_cores = 32\nsys_mem_gb = 192\n\n[hosts.cuda17]\ngpu_type = \"Quadro RTX 6000\"\nnum_gpus = 3\ngpu_mem_gb = 24\ncpu_cores = 24\nsys_mem_gb = 144\n\n[hosts.cuda18]\ngpu_type = \"RTX A6000\"\nnum_gpus = 3\ngpu_mem_gb = 48\ncpu_cores = 32\nsys_mem_gb = 192\n\n[hosts.cuda19]\ngpu_type = \"L4\"\nnum_gpus = 4\ngpu_mem_gb = 24\ncpu_cores = 64\nsys_mem_gb = 256\n\n[hosts.cuda20]\ngpu_type = \"L40S\"\nnum_gpus = 4\ngpu_mem_gb = 48\ncpu_cores = 64\nsys_mem_gb = 384\n\n[hosts.cuda21]\ngpu_type = \"RTX 6000 Ada Generation\"\nnum_gpus = 2\ngpu_mem_gb = 48\ncpu_cores = 48\nsys_mem_gb = 256\n\n[hosts.cuda22]\ngpu_type = \"RTX 6000 Ada Generation\"\nnum_gpus = 2\ngpu_mem_gb = 48\ncpu_cores = 48\nsys_mem_gb = 256\n\n[hosts.gryphon]\ngpu_type = \"RTX A6000\"\nnum_gpus = 1\ngpu_mem_gb = 48\ncpu_cores = 64\nsys_mem_gb = 192\n\n[hosts.red-tomatoes]\ngpu_type = \"RTX A6000\"\nnum_gpus = 2\ngpu_mem_gb = 48\ncpu_cores = 32\nsys_mem_gb = 96\n\n[hosts.piccolo]\ngpu_type = \"RTX A5000\"\nnum_gpus = 2\ngpu_mem_gb = 24\ncpu_cores = 20\nsys_mem_gb = 128\n\n[hosts.the-villa]\ngpu_type = \"RTX A6000\"\nnum_gpus = 1\ngpu_mem_gb = 48\ncpu_cores = 64\nsys_mem_gb = 192\n\n[hosts.bordeaux]\ngpu_type = \"Quadro RTX 6000\"\nnum_gpus = 1\ngpu_mem_gb = 24\ncpu_cores = 20\nsys_mem_gb = 64\n",
+  "output": {
+   "hosts": [
+    {
+     "name": "cuda-small0",
+     "kind": "ssh",
+     "hostname": "cuda-small0.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A4000",
+     "num_gpus": 4,
+     "gpu_mem_gb": 16,
+     "cpu_cores": 16,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "cuda-small1",
+     "kind": "ssh",
+     "hostname": "cuda-small1.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX 4000 Ada Generation",
+     "num_gpus": 3,
+     "gpu_mem_gb": 20,
+     "cpu_cores": 16,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda00",
+     "kind": "ssh",
+     "hostname": "cuda00.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX 6000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda01",
+     "kind": "ssh",
+     "hostname": "cuda01.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda02",
+     "kind": "ssh",
+     "hostname": "cuda02.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda03",
+     "kind": "ssh",
+     "hostname": "cuda03.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda04",
+     "kind": "ssh",
+     "hostname": "cuda04.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 16,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "cuda05",
+     "kind": "ssh",
+     "hostname": "cuda05.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX PRO 5000 Blackwell",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda06",
+     "kind": "ssh",
+     "hostname": "cuda06.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX PRO 5000 Blackwell",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 16,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda07",
+     "kind": "ssh",
+     "hostname": "cuda07.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda08",
+     "kind": "ssh",
+     "hostname": "cuda08.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda09",
+     "kind": "ssh",
+     "hostname": "cuda09.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX PRO 4000 Blackwell",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda10",
+     "kind": "ssh",
+     "hostname": "cuda10.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 128
+    },
+    {
+     "name": "cuda11",
+     "kind": "ssh",
+     "hostname": "cuda11.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 112
+    },
+    {
+     "name": "cuda12",
+     "kind": "ssh",
+     "hostname": "cuda12.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda13",
+     "kind": "ssh",
+     "hostname": "cuda13.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "cuda14",
+     "kind": "ssh",
+     "hostname": "cuda14.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "A40",
+     "num_gpus": 4,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda15",
+     "kind": "ssh",
+     "hostname": "cuda15.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "A40",
+     "num_gpus": 4,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda16",
+     "kind": "ssh",
+     "hostname": "cuda16.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 32,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "cuda17",
+     "kind": "ssh",
+     "hostname": "cuda17.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "Quadro RTX 6000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 24,
+     "sys_mem_gb": 144
+    },
+    {
+     "name": "cuda18",
+     "kind": "ssh",
+     "hostname": "cuda18.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 3,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 32,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "cuda19",
+     "kind": "ssh",
+     "hostname": "cuda19.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "L4",
+     "num_gpus": 4,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 64,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda20",
+     "kind": "ssh",
+     "hostname": "cuda20.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "L40S",
+     "num_gpus": 4,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 384
+    },
+    {
+     "name": "cuda21",
+     "kind": "ssh",
+     "hostname": "cuda21.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX 6000 Ada Generation",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 48,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "cuda22",
+     "kind": "ssh",
+     "hostname": "cuda22.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX 6000 Ada Generation",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 48,
+     "sys_mem_gb": 256
+    },
+    {
+     "name": "gryphon",
+     "kind": "ssh",
+     "hostname": "gryphon.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 1,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "red-tomatoes",
+     "kind": "ssh",
+     "hostname": "red-tomatoes.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 32,
+     "sys_mem_gb": 96
+    },
+    {
+     "name": "piccolo",
+     "kind": "ssh",
+     "hostname": "piccolo.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A5000",
+     "num_gpus": 2,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 20,
+     "sys_mem_gb": 128
+    },
+    {
+     "name": "the-villa",
+     "kind": "ssh",
+     "hostname": "the-villa.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "RTX A6000",
+     "num_gpus": 1,
+     "gpu_mem_gb": 48,
+     "cpu_cores": 64,
+     "sys_mem_gb": 192
+    },
+    {
+     "name": "bordeaux",
+     "kind": "ssh",
+     "hostname": "bordeaux.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": "ecs",
+     "role": "worker",
+     "tags": [
+      "ecs"
+     ],
+     "group": "ecs",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": "/vol/ecrg-solar/woodj4",
+     "enabled": true,
+     "gpu_type": "Quadro RTX 6000",
+     "num_gpus": 1,
+     "gpu_mem_gb": 24,
+     "cpu_cores": 20,
+     "sys_mem_gb": 64
+    },
+    {
+     "name": "ts-entry",
+     "kind": "ssh",
+     "hostname": "entry.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "ts-barretts",
+     "kind": "ssh",
+     "hostname": "barretts.ecs.vuw.ac.nz",
+     "user": "woodj4",
+     "port": null,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    }
+   ],
+   "jumps": {
+    "ecs": [
+     "ts-entry",
+     "ts-barretts"
+    ]
+   },
+   "mode": "auto",
+   "probe": null,
+   "identity_file": null,
+   "control_persist": "10m",
+   "jump_control_persist": "12h",
+   "extra_options": [],
+   "builtin": false,
+   "max_gpus": null,
+   "taura": "auto",
+   "detective_history": null,
+   "idle_minutes": 30,
+   "workers": [
+    "cuda-small0",
+    "cuda-small1",
+    "cuda00",
+    "cuda01",
+    "cuda02",
+    "cuda03",
+    "cuda04",
+    "cuda05",
+    "cuda06",
+    "cuda07",
+    "cuda08",
+    "cuda09",
+    "cuda10",
+    "cuda11",
+    "cuda12",
+    "cuda13",
+    "cuda14",
+    "cuda15",
+    "cuda16",
+    "cuda17",
+    "cuda18",
+    "cuda19",
+    "cuda20",
+    "cuda21",
+    "cuda22",
+    "gryphon",
+    "red-tomatoes",
+    "piccolo",
+    "the-villa",
+    "bordeaux"
+   ]
+  }
+ },
+ {
+  "name": "fake_cluster",
+  "input": "\n[network]\nmode = \"jump\"\nprobe = \"127.0.0.1:2211\"\n\n[ssh]\nidentity_file = \"~/fake/id_ed25519\"\ncontrol_persist = \"120s\"\njump_control_persist = \"120s\"\nextra_options = [\"UserKnownHostsFile=~/fake/known_hosts\", \"IdentitiesOnly=yes\", \"IdentityAgent = none\"]\n\n[jumps.fake]\nchain = [\"entry\", \"barretts\"]\n\n[hosts.entry]\nhostname = \"127.0.0.1\"\nport = 2201\nuser = \"me\"\n\n[hosts.barretts]\nhostname = \"127.0.0.1\"\nport = 2202\nuser = \"me\"\n\n[groups.fake]\nuser = \"me\"\nhostname = \"127.0.0.1\"\njump = \"fake\"\npath_map = [ { local = \"~/local-src\", remote = \"/work/remote-src\" } ]\nremote_root = \"/work/repos/\"\nhosts = [\"cuda01\", \"cuda02\"]\n\n[hosts.cuda01]\nport = 2211\n\n[hosts.cuda02]\nport = 2212\ngpu_type = \"A40\"\n\n[hosts.local]\nkind = \"local\"\ncpu_slots = 2\n",
+  "output": {
+   "hosts": [
+    {
+     "name": "cuda01",
+     "kind": "ssh",
+     "hostname": "127.0.0.1",
+     "user": "me",
+     "port": 2211,
+     "jump": "fake",
+     "role": "worker",
+     "tags": [
+      "fake"
+     ],
+     "group": "fake",
+     "path_map": [
+      [
+       "{HOME}/local-src",
+       "/work/remote-src"
+      ]
+     ],
+     "cpu_slots": 0,
+     "remote_root": "/work/repos",
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "cuda02",
+     "kind": "ssh",
+     "hostname": "127.0.0.1",
+     "user": "me",
+     "port": 2212,
+     "jump": "fake",
+     "role": "worker",
+     "tags": [
+      "fake"
+     ],
+     "group": "fake",
+     "path_map": [
+      [
+       "{HOME}/local-src",
+       "/work/remote-src"
+      ]
+     ],
+     "cpu_slots": 0,
+     "remote_root": "/work/repos",
+     "enabled": true,
+     "gpu_type": "A40",
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "entry",
+     "kind": "ssh",
+     "hostname": "127.0.0.1",
+     "user": "me",
+     "port": 2201,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "barretts",
+     "kind": "ssh",
+     "hostname": "127.0.0.1",
+     "user": "me",
+     "port": 2202,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "local",
+     "kind": "local",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 2,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    }
+   ],
+   "jumps": {
+    "fake": [
+     "entry",
+     "barretts"
+    ]
+   },
+   "mode": "jump",
+   "probe": "127.0.0.1:2211",
+   "identity_file": "~/fake/id_ed25519",
+   "control_persist": "120s",
+   "jump_control_persist": "120s",
+   "extra_options": [
+    "UserKnownHostsFile=~/fake/known_hosts",
+    "IdentitiesOnly=yes",
+    "IdentityAgent = none"
+   ],
+   "builtin": false,
+   "max_gpus": null,
+   "taura": "auto",
+   "detective_history": null,
+   "idle_minutes": 30,
+   "workers": [
+    "cuda01",
+    "cuda02",
+    "local"
+   ]
+  }
+ },
+ {
+  "name": "merging",
+  "input": "\n[jumps.j]\nchain = [\"gate\", \"u@127.0.0.1:2201\", \"[::1]:2202\", \"gw.example.org\", \"gw.example.org\", \"gw.other.org\"]\n[hosts.gate]\nhostname = \"gate.example\"\n[groups.a]\nuser = \"alice\"\ndomain = \"a.example\"\njump = \"j\"\ncpu_slots = 1\ntags = [\"big\"]\nhosts = [\"x\", \"y\"]\n[groups.b]\nuser = \"bob\"\ntags = [\"b2\", \"big\"]\nhosts = [\"y\", \"z\"]\n[hosts.y]\nuser = \"yuser\"\nhostname = \"custom.y\"\ntags = [\"extra\", \"a\"]\nenabled = true\ngpu_mem_gb = 23.5\n[hosts.x]\nenabled = false\n[hosts.loc]\nkind = \"local\"\ncpu_slots = 2\njump = \"j\"\n[limits]\nmax_gpus = 4\n[provenance]\ntaura = \"off\"\n[detective]\nidle_minutes = 45\nhistory = \"~/hist.db\"\n",
+  "output": {
+   "hosts": [
+    {
+     "name": "x",
+     "kind": "ssh",
+     "hostname": "x.a.example",
+     "user": "alice",
+     "port": null,
+     "jump": "j",
+     "role": "worker",
+     "tags": [
+      "a",
+      "big"
+     ],
+     "group": "a",
+     "path_map": [],
+     "cpu_slots": 1,
+     "remote_root": null,
+     "enabled": false,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "y",
+     "kind": "ssh",
+     "hostname": "custom.y",
+     "user": "yuser",
+     "port": null,
+     "jump": "j",
+     "role": "worker",
+     "tags": [
+      "a",
+      "big",
+      "b",
+      "b2",
+      "extra"
+     ],
+     "group": "a",
+     "path_map": [],
+     "cpu_slots": 1,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": 23.5,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "z",
+     "kind": "ssh",
+     "hostname": null,
+     "user": "bob",
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [
+      "b",
+      "b2",
+      "big"
+     ],
+     "group": "b",
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "gate",
+     "kind": "ssh",
+     "hostname": "gate.example",
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "loc",
+     "kind": "local",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 2,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "ts-127-0-0-1",
+     "kind": "ssh",
+     "hostname": "127.0.0.1",
+     "user": "u",
+     "port": 2201,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "ts---1",
+     "kind": "ssh",
+     "hostname": "::1",
+     "user": null,
+     "port": 2202,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "ts-gw",
+     "kind": "ssh",
+     "hostname": "gw.example.org",
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "ts-gw-2",
+     "kind": "ssh",
+     "hostname": "gw.other.org",
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "jump",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    }
+   ],
+   "jumps": {
+    "j": [
+     "gate",
+     "ts-127-0-0-1",
+     "ts---1",
+     "ts-gw",
+     "ts-gw",
+     "ts-gw-2"
+    ]
+   },
+   "mode": "auto",
+   "probe": null,
+   "identity_file": null,
+   "control_persist": "10m",
+   "jump_control_persist": "12h",
+   "extra_options": [],
+   "builtin": false,
+   "max_gpus": 4,
+   "taura": "off",
+   "detective_history": "~/hist.db",
+   "idle_minutes": 45,
+   "workers": [
+    "y",
+    "z",
+    "loc"
+   ]
+  }
+ },
+ {
+  "name": "paths",
+  "input": "\n[hosts.h]\nremote_root = \"/vol/me\"\npath_map = [\n  { local = \"/work/j/code\", remote = \"/vol/a\" },\n  { local = \"/work/j/code/deep/\", remote = \"/vol/b/\" },\n  { local = \"/mapped\", remote = \"/elsewhere\" },\n  { local = \"~/data\", remote = \"/vol/data\" },\n]\n[hosts.root]\npath_map = [ { local = \"/\", remote = \"/srv/\" } ]\n[hosts.plain]\n[hosts.loc]\nkind = \"local\"\n",
+  "output": {
+   "hosts": [
+    {
+     "name": "h",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [],
+     "group": null,
+     "path_map": [
+      [
+       "/work/j/code",
+       "/vol/a"
+      ],
+      [
+       "/work/j/code/deep/",
+       "/vol/b/"
+      ],
+      [
+       "/mapped",
+       "/elsewhere"
+      ],
+      [
+       "{HOME}/data",
+       "/vol/data"
+      ]
+     ],
+     "cpu_slots": 0,
+     "remote_root": "/vol/me",
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "root",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [],
+     "group": null,
+     "path_map": [
+      [
+       "/",
+       "/srv/"
+      ]
+     ],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "plain",
+     "kind": "ssh",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    },
+    {
+     "name": "loc",
+     "kind": "local",
+     "hostname": null,
+     "user": null,
+     "port": null,
+     "jump": null,
+     "role": "worker",
+     "tags": [],
+     "group": null,
+     "path_map": [],
+     "cpu_slots": 0,
+     "remote_root": null,
+     "enabled": true,
+     "gpu_type": null,
+     "num_gpus": null,
+     "gpu_mem_gb": null,
+     "cpu_cores": null,
+     "sys_mem_gb": null
+    }
+   ],
+   "jumps": {},
+   "mode": "auto",
+   "probe": null,
+   "identity_file": null,
+   "control_persist": "10m",
+   "jump_control_persist": "12h",
+   "extra_options": [],
+   "builtin": false,
+   "max_gpus": null,
+   "taura": "auto",
+   "detective_history": null,
+   "idle_minutes": 30,
+   "workers": [
+    "h",
+    "root",
+    "plain",
+    "loc"
+   ]
+  }
+ },
+ {
+  "name": "empty",
+  "input": "",
+  "output": {
+   "hosts": [],
+   "jumps": {},
+   "mode": "auto",
+   "probe": null,
+   "identity_file": null,
+   "control_persist": "10m",
+   "jump_control_persist": "12h",
+   "extra_options": [],
+   "builtin": false,
+   "max_gpus": null,
+   "taura": "auto",
+   "detective_history": null,
+   "idle_minutes": 30,
+   "workers": []
+  }
+ },
+ {
+  "name": "bad_toml",
+  "input": "[network\nmode = 1",
+  "output": {
+   "error": "ConfigError",
+   "message": "invalid TOML"
+  }
+ },
+ {
+  "name": "bad_mode",
+  "input": "[network]\nmode = \"sometimes\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "network.mode must be auto, direct or jump (got 'sometimes')"
+  }
+ },
+ {
+  "name": "bad_taura",
+  "input": "[provenance]\ntaura = \"on\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "provenance.taura must be auto or off (got 'on')"
+  }
+ },
+ {
+  "name": "group_unknown_key",
+  "input": "[groups.g]\nhosts = [\"a\"]\nfoo = 1",
+  "output": {
+   "error": "ConfigError",
+   "message": "groups.g: unknown key(s) ['foo']"
+  }
+ },
+ {
+  "name": "host_unknown_key",
+  "input": "[hosts.a]\nbar = 1\nfoo = 2",
+  "output": {
+   "error": "ConfigError",
+   "message": "hosts.a: unknown key(s) ['bar', 'foo']"
+  }
+ },
+ {
+  "name": "empty_chain",
+  "input": "[jumps.j]\nchain = []",
+  "output": {
+   "error": "ConfigError",
+   "message": "jumps.j: chain is empty"
+  }
+ },
+ {
+  "name": "bad_kind",
+  "input": "[hosts.a]\nkind = \"docker\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "hosts.a: kind must be ssh or local"
+  }
+ },
+ {
+  "name": "unknown_jump",
+  "input": "[hosts.a]\njump = \"nope\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "hosts.a: unknown jump chain 'nope'"
+  }
+ },
+ {
+  "name": "bad_role",
+  "input": "[hosts.a]\nrole = \"boss\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "hosts.a: role must be worker or jump"
+  }
+ },
+ {
+  "name": "hop_with_jump",
+  "input": "[jumps.j]\nchain = [\"a\"]\n[hosts.a]\njump = \"j\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "jumps.j: hop 'a' must not set its own jump"
+  }
+ },
+ {
+  "name": "path_map_entry",
+  "input": "[hosts.a]\npath_map = [ { local = \"/x\" } ]",
+  "output": {
+   "error": "ConfigError",
+   "message": "hosts.a: path_map entries need 'local' and 'remote'"
+  }
+ },
+ {
+  "name": "limits_unknown",
+  "input": "[limits]\nmax_gpu = 5",
+  "output": {
+   "error": "ConfigError",
+   "message": "limits: unknown key(s) ['max_gpu']"
+  }
+ },
+ {
+  "name": "max_gpus_zero",
+  "input": "[limits]\nmax_gpus = 0",
+  "output": {
+   "error": "ConfigError",
+   "message": "limits.max_gpus must be a positive integer (got 0)"
+  }
+ },
+ {
+  "name": "max_gpus_string",
+  "input": "[limits]\nmax_gpus = \"5\"",
+  "output": {
+   "error": "ConfigError",
+   "message": "limits.max_gpus must be a positive integer (got '5')"
+  }
+ },
+ {
+  "name": "max_gpus_bool",
+  "input": "[limits]\nmax_gpus = true",
+  "output": {
+   "error": "ConfigError",
+   "message": "limits.max_gpus must be a positive integer (got True)"
+  }
+ },
+ {
+  "name": "max_gpus_float",
+  "input": "[limits]\nmax_gpus = 2.5",
+  "output": {
+   "error": "ConfigError",
+   "message": "limits.max_gpus must be a positive integer (got 2.5)"
+  }
+ },
+ {
+  "name": "detective_unknown",
+  "input": "[detective]\nwhen = 1",
+  "output": {
+   "error": "ConfigError",
+   "message": "detective: unknown key(s) ['when']"
+  }
+ },
+ {
+  "name": "idle_minutes_zero",
+  "input": "[detective]\nidle_minutes = 0",
+  "output": {
+   "error": "ConfigError",
+   "message": "detective.idle_minutes must be a positive integer (got 0)"
+  }
+ },
+ {
+  "name": "idle_minutes_bool",
+  "input": "[detective]\nidle_minutes = false",
+  "output": {
+   "error": "ConfigError",
+   "message": "detective.idle_minutes must be a positive integer (got False)"
+  }
+ }
+]

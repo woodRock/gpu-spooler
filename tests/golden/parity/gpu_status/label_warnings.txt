@@ -1,0 +1,3 @@
+[93m* gpu_type in {HOME}/.gpu-spooler/hosts.toml disagrees with nvidia-smi:[0m
+[93m    cuda02         configured 'RTX A6000', reports 'A40'[0m
+[93m  --gpu-type and -m use what nvidia-smi reports; update or remove these gpu_type (and gpu_mem_gb/num_gpus) entries.[0m

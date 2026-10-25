@@ -1,0 +1,100 @@
+[
+ {
+  "name": "done/0",
+  "input": {
+   "id": 7,
+   "status": "done",
+   "exit_code": 0,
+   "started_at": 1000.0,
+   "finished_at": 1221.0
+  },
+  "output": {
+   "code": 0,
+   "describe": "task 7: done (exit 0, 3m 41s)"
+  }
+ },
+ {
+  "name": "failed/3",
+  "input": {
+   "id": 7,
+   "status": "failed",
+   "exit_code": 3,
+   "started_at": 1000.0,
+   "finished_at": 1005.5
+  },
+  "output": {
+   "code": 3,
+   "describe": "task 7: failed (exit 3, 5s)"
+  }
+ },
+ {
+  "name": "failed/0",
+  "input": {
+   "id": 7,
+   "status": "failed",
+   "exit_code": 0,
+   "started_at": null,
+   "finished_at": null
+  },
+  "output": {
+   "code": 1,
+   "describe": "task 7: failed (exit 0)"
+  }
+ },
+ {
+  "name": "failed/None",
+  "input": {
+   "id": 7,
+   "status": "failed",
+   "exit_code": null,
+   "started_at": null,
+   "finished_at": null
+  },
+  "output": {
+   "code": 1,
+   "describe": "task 7: failed"
+  }
+ },
+ {
+  "name": "killed/None",
+  "input": {
+   "id": 7,
+   "status": "killed",
+   "exit_code": null,
+   "started_at": 1000.0,
+   "finished_at": 4700.0
+  },
+  "output": {
+   "code": 130,
+   "describe": "task 7: killed (1h 01m)"
+  }
+ },
+ {
+  "name": "cancelled/None",
+  "input": {
+   "id": 7,
+   "status": "cancelled",
+   "exit_code": null,
+   "started_at": null,
+   "finished_at": null
+  },
+  "output": {
+   "code": 130,
+   "describe": "task 7: cancelled"
+  }
+ },
+ {
+  "name": "lost/None",
+  "input": {
+   "id": 7,
+   "status": "lost",
+   "exit_code": null,
+   "started_at": 1000.0,
+   "finished_at": 1100.0
+  },
+  "output": {
+   "code": 75,
+   "describe": "task 7: lost (1m 40s)"
+  }
+ }
+]

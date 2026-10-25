@@ -1,0 +1,57 @@
+[
+ {
+  "name": "python3 train.py",
+  "input": "python3 train.py",
+  "output": "python3"
+ },
+ {
+  "name": "PYTHONPATH=src CUDA=1 python3.11 -m pkg",
+  "input": "PYTHONPATH=src CUDA=1 python3.11 -m pkg",
+  "output": "PYTHONPATH=src CUDA=1 python3.11"
+ },
+ {
+  "name": "/usr/bin/python t.py",
+  "input": "/usr/bin/python t.py",
+  "output": "/usr/bin/python"
+ },
+ {
+  "name": "torchrun --nproc 2 t.py",
+  "input": "torchrun --nproc 2 t.py",
+  "output": "python3"
+ },
+ {
+  "name": "bash -c 'python3 x.py'",
+  "input": "bash -c 'python3 x.py'",
+  "output": "python3"
+ },
+ {
+  "name": "A=1",
+  "input": "A=1",
+  "output": "A=1 python3"
+ },
+ {
+  "name": "",
+  "input": "",
+  "output": "python3"
+ },
+ {
+  "name": "python3 'unterminated",
+  "input": "python3 'unterminated",
+  "output": "python3"
+ },
+ {
+  "name": "env X=1 python3 t.py",
+  "input": "env X=1 python3 t.py",
+  "output": "python3"
+ },
+ {
+  "name": "./venv/bin/python3.10 run.py",
+  "input": "./venv/bin/python3.10 run.py",
+  "output": "./venv/bin/python3.10"
+ },
+ {
+  "name": "pythonista x",
+  "input": "pythonista x",
+  "output": "python3"
+ }
+]

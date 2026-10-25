@@ -1,0 +1,17 @@
+[
+ {
+  "name": "FIND_GIT",
+  "input": null,
+  "output": "command -v git >/dev/null 2>&1 || PATH=\"$(bash -lc 'printf %s \"$PATH\"' </dev/null 2>/dev/null):$PATH\"\n"
+ },
+ {
+  "name": "RECEIVE_PACK",
+  "input": null,
+  "output": "bash -lc 'exec git-receive-pack \"$@\"' git-receive-pack"
+ },
+ {
+  "name": "SYNC_REF",
+  "input": null,
+  "output": "refs/gpu-spooler/sync"
+ }
+]

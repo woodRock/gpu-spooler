@@ -1,0 +1,88 @@
+[
+ {
+  "name": "merging",
+  "input": "\n[jumps.j]\nchain = [\"gate\", \"u@127.0.0.1:2201\", \"[::1]:2202\", \"gw.example.org\", \"gw.example.org\", \"gw.other.org\"]\n[hosts.gate]\nhostname = \"gate.example\"\n[groups.a]\nuser = \"alice\"\ndomain = \"a.example\"\njump = \"j\"\ncpu_slots = 1\ntags = [\"big\"]\nhosts = [\"x\", \"y\"]\n[groups.b]\nuser = \"bob\"\ntags = [\"b2\", \"big\"]\nhosts = [\"y\", \"z\"]\n[hosts.y]\nuser = \"yuser\"\nhostname = \"custom.y\"\ntags = [\"extra\", \"a\"]\nenabled = true\ngpu_mem_gb = 23.5\n[hosts.x]\nenabled = false\n[hosts.loc]\nkind = \"local\"\ncpu_slots = 2\njump = \"j\"\n[limits]\nmax_gpus = 4\n[provenance]\ntaura = \"off\"\n[detective]\nidle_minutes = 45\nhistory = \"~/hist.db\"\n",
+  "output": null
+ },
+ {
+  "name": "None",
+  "input": null,
+  "output": [
+   "y",
+   "z",
+   "loc"
+  ]
+ },
+ {
+  "name": "''",
+  "input": "",
+  "output": [
+   "y",
+   "z",
+   "loc"
+  ]
+ },
+ {
+  "name": "'b'",
+  "input": "b",
+  "output": [
+   "y",
+   "z"
+  ]
+ },
+ {
+  "name": "'big'",
+  "input": "big",
+  "output": [
+   "y",
+   "z"
+  ]
+ },
+ {
+  "name": "'loc, z'",
+  "input": "loc, z",
+  "output": [
+   "z",
+   "loc"
+  ]
+ },
+ {
+  "name": "'a,b'",
+  "input": "a,b",
+  "output": [
+   "y",
+   "z"
+  ]
+ },
+ {
+  "name": "'y,,y'",
+  "input": "y,,y",
+  "output": [
+   "y"
+  ]
+ },
+ {
+  "name": "'x'",
+  "input": "x",
+  "output": {
+   "error": "ConfigError",
+   "message": "'x' matches no enabled host, group or tag"
+  }
+ },
+ {
+  "name": "'nope'",
+  "input": "nope",
+  "output": {
+   "error": "ConfigError",
+   "message": "'nope' matches no enabled host, group or tag"
+  }
+ },
+ {
+  "name": "'z,nope'",
+  "input": "z,nope",
+  "output": {
+   "error": "ConfigError",
+   "message": "'nope' matches no enabled host, group or tag"
+  }
+ }
+]
