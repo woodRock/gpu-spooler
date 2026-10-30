@@ -10,6 +10,7 @@ use crate::gpu::gpu_model;
 use crate::paths::Paths;
 use crate::transport::{now, Transport};
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -297,24 +298,33 @@ pub fn getuser() -> String {
 pub const REQUEUE: &str = "status='queued', ssh_pid=NULL, started_at=NULL, finished_at=NULL, server=NULL, \
 gpu_indices=NULL, job_key=NULL, remote_pid=NULL, log_offset=0, remote_dir=NULL, retry_count=retry_count+1";
 
-/// What `task submit` asks for.
-#[derive(Clone, Debug, Default)]
+/// What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
+/// `num_gpus` must not become a CPU job); everything else defaults.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SubmitOpts {
     pub command: String,
     pub num_gpus: i64,
+    #[serde(default)]
     pub min_mem: i64,
+    #[serde(default)]
     pub name: Option<String>,
+    #[serde(default)]
     pub host_spec: Option<String>,
+    #[serde(default)]
     pub working_dir: Option<String>,
+    #[serde(default)]
     pub gpu_type: Option<String>,
+    #[serde(default)]
     pub no_record: bool,
     /// Start the daemon (unless it runs).
+    #[serde(default)]
     pub start: bool,
     /// Check the servers' copy of the repo (one ssh call per copy).
+    #[serde(default)]
     pub check_repo: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Submitted {
     pub task_id: i64,
     pub command: String,
@@ -528,7 +538,7 @@ pub fn resubmit(transport: &Transport, task_id: i64, start: bool) -> Result<Subm
     )
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct KillResult {
     pub task_id: i64,
     /// cancelled | killed | none
@@ -627,6 +637,7 @@ pub fn kill(transport: &Transport, task_id: i64) -> Result<KillResult, TaskError
     Ok(KillResult { task_id, action: "killed", confirmed, message })
 }
 
+#[derive(Clone, Debug, Serialize)]
 pub struct KillAllResult {
     pub cancelled: usize,
     pub killed: usize,
@@ -681,6 +692,7 @@ pub fn reset_history(paths: &Paths) -> Result<(), TaskError> {
     Ok(())
 }
 
+#[derive(Clone, Debug, Serialize)]
 pub struct Cleared {
     pub tasks: usize,
     pub log_files: usize,
@@ -789,15 +801,23 @@ pub fn running_in(con: &Connection, paths: &[String]) -> Result<usize, TaskError
 // ── The daemon process ────────────────────────────────────────────────────────
 
 /// Start the daemon (`task __daemon`, detached in its own session, output to daemon.log); its
-/// PID, or None if one is already running.
+/// PID, or None if one is already running. Runs this executable, so only `task` itself may call
+/// it; other front ends use [`start_daemon_with`].
 pub fn start_daemon(paths: &Paths) -> std::io::Result<Option<i64>> {
+    start_daemon_with(paths, &std::env::current_exe()?)
+}
+
+/// [`start_daemon`] with the `task` binary at `exe`, for front ends that are not `task` (the
+/// desktop app). They also pass `start: false` to [`submit`] and [`resubmit`], which would run
+/// this executable, and start the daemon with this afterwards.
+pub fn start_daemon_with(paths: &Paths, exe: &std::path::Path) -> std::io::Result<Option<i64>> {
     use std::os::unix::process::CommandExt;
     if daemon_pid(paths).is_some() {
         return Ok(None);
     }
     std::fs::create_dir_all(&paths.state)?;
     let log = std::fs::OpenOptions::new().create(true).append(true).open(paths.daemon_log())?;
-    let mut cmd = std::process::Command::new(std::env::current_exe()?);
+    let mut cmd = std::process::Command::new(exe);
     cmd.arg("__daemon")
         .stdin(std::process::Stdio::null())
         .stdout(log.try_clone()?)
@@ -873,5 +893,71 @@ mod tests {
         assert_eq!(daemon_pid(&paths), Some(std::process::id() as i64));
         std::fs::write(paths.pid_file(), "junk").unwrap();
         assert_eq!(daemon_pid(&paths), None);
+    }
+
+    #[test]
+    fn start_daemon_with_runs_the_given_binary() {
+        use std::os::unix::fs::PermissionsExt;
+        let home = tempfile::tempdir().unwrap();
+        let paths = Paths::for_home(home.path());
+        let bin = tempfile::tempdir().unwrap();
+        let exe = bin.path().join("task");
+        // Records its argument in its working directory (home), prints to daemon.log, stays alive.
+        std::fs::write(&exe, "#!/bin/sh\necho \"$1\" > started\necho hello from the daemon\nexec sleep 30\n").unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let pid = start_daemon_with(&paths, &exe).unwrap().expect("started");
+        let started = home.path().join("started");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !std::fs::read_to_string(&started).is_ok_and(|s| s.ends_with('\n')) {
+            assert!(Instant::now() < deadline, "the binary never ran");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(std::fs::read_to_string(&started).unwrap(), "__daemon\n");
+        assert_eq!(std::fs::read_to_string(paths.pid_file()).unwrap(), pid.to_string());
+        assert_eq!(daemon_pid(&paths), Some(pid));
+        assert_eq!(start_daemon_with(&paths, &exe).unwrap(), None, "one daemon at a time");
+        assert!(std::fs::read_to_string(paths.daemon_log()).unwrap().contains("hello from the daemon"));
+        assert_eq!(stop_daemon(&paths), Some(pid));
+    }
+
+    #[test]
+    fn submit_opts_from_json_need_command_and_gpus() {
+        let opts: SubmitOpts = serde_json::from_str(r#"{"command": "python3 train.py", "num_gpus": 2}"#).unwrap();
+        assert_eq!((opts.command.as_str(), opts.num_gpus, opts.min_mem), ("python3 train.py", 2, 0));
+        assert!(!opts.start && !opts.check_repo && opts.name.is_none());
+        assert!(serde_json::from_str::<SubmitOpts>(r#"{"command": "x"}"#).is_err(), "no silent CPU job");
+        assert!(serde_json::from_str::<SubmitOpts>(r#"{"num_gpus": 1}"#).is_err());
+    }
+
+    #[test]
+    fn action_results_serialize() {
+        let kill = KillResult { task_id: 3, action: "killed", confirmed: false, message: "m".into() };
+        let expected = serde_json::json!({"task_id": 3, "action": "killed", "confirmed": false, "message": "m"});
+        assert_eq!(serde_json::to_value(&kill).unwrap(), expected);
+        let all = KillAllResult { cancelled: 1, killed: 2, unconfirmed: vec![kill] };
+        assert_eq!(serde_json::to_value(&all).unwrap()["unconfirmed"][0], expected);
+        let cleared = Cleared { tasks: 4, log_files: 3, failed_hosts: vec!["cuda14".into()] };
+        assert_eq!(
+            serde_json::to_value(&cleared).unwrap(),
+            serde_json::json!({"tasks": 4, "log_files": 3, "failed_hosts": ["cuda14"]})
+        );
+        let sub = Submitted {
+            task_id: 7,
+            command: "x".into(),
+            working_dir: "/w".into(),
+            num_gpus: 1,
+            min_mem: 0,
+            name: None,
+            host_spec: None,
+            candidates: vec!["cuda14".into()],
+            warnings: vec![],
+            gpu_type: None,
+        };
+        let v = serde_json::to_value(&sub).unwrap();
+        assert_eq!(
+            (v["task_id"].as_i64(), v["name"].is_null(), &v["candidates"][0]),
+            (Some(7), true, &"cuda14".into())
+        );
     }
 }
