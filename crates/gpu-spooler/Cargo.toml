@@ -19,12 +19,17 @@ libc = "0.2"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+specta = { version = "2.0.0-rc.26", features = ["derive"], optional = true }
 sha2 = "0.10"
 tar = "0.4"
 tempfile = "3"
 thiserror = "2"
 toml = { version = "0.8", features = ["preserve_order"] }
 wait-timeout = "0.2"
+
+[features]
+# TypeScript types for the desktop app (desktop/), through tauri-specta.
+specta = ["dep:specta"]
 
 [dev-dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }

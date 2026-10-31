@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/gpu-spooler", "crates/gpu-spooler-cli"]
+# The desktop app has its own lockfile, so the CLI and its CI never build Tauri.
+exclude = ["desktop/src-tauri"]
 
 [workspace.package]
 version = "0.2.0"

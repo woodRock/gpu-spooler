@@ -301,6 +301,7 @@ gpu_indices=NULL, job_key=NULL, remote_pid=NULL, log_offset=0, remote_dir=NULL, 
 /// What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
 /// `num_gpus` must not become a CPU job); everything else defaults.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SubmitOpts {
     pub command: String,
     pub num_gpus: i64,
@@ -325,6 +326,7 @@ pub struct SubmitOpts {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Submitted {
     pub task_id: i64,
     pub command: String,
@@ -539,6 +541,7 @@ pub fn resubmit(transport: &Transport, task_id: i64, start: bool) -> Result<Subm
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct KillResult {
     pub task_id: i64,
     /// cancelled | killed | none
@@ -638,6 +641,7 @@ pub fn kill(transport: &Transport, task_id: i64) -> Result<KillResult, TaskError
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct KillAllResult {
     pub cancelled: usize,
     pub killed: usize,
@@ -693,6 +697,7 @@ pub fn reset_history(paths: &Paths) -> Result<(), TaskError> {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Cleared {
     pub tasks: usize,
     pub log_files: usize,

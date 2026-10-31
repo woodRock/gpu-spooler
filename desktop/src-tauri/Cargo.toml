@@ -1,0 +1,36 @@
+[package]
+name = "gpu-spooler-desktop"
+description = "Desktop app for gpu-spooler: the queue, logs and GPUs, in a window and the menu bar"
+version = "0.2.0"
+edition = "2021"
+repository = "https://github.com/woodRock/gpu-spooler"
+license = "MIT"
+
+# Not a member of the root workspace (see its `exclude`): Tauri stays out of the CLI's build.
+[workspace]
+
+[lib]
+name = "gpu_spooler_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+gpu-spooler = { path = "../../crates/gpu-spooler", features = ["specta"] }
+notify = "8.2"
+# The version gpu-spooler uses, so both share one bundled SQLite.
+rusqlite = "0.32"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = { version = "2.0.0-rc.26", features = ["derive"] }
+specta-typescript = "0.0.13"
+tauri = { version = "2.12", features = [] }
+tauri-specta = { version = "2.0.0-rc.26", features = ["derive", "typescript"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+strip = true
