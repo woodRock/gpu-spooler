@@ -4,8 +4,9 @@ A desktop app for gpu-spooler (Tauri 2, React and TypeScript). It links the `gpu
 directly and reads the same `~/.gpu-spooler` state as `task` and `task tui`. It never runs a daemon
 of its own.
 
-**Status:** M2. Read-only. A live queue with each task's log and details, a GPU heatmap and a hosts
-table. Actions (kill, resubmit, new task) and the menu bar item come next.
+**Status:** M3. A live queue with each task's log and details, a GPU heatmap and a hosts table. Kill,
+resubmit, clear finished, a New Task form and starting the daemon, each confirmed first. The menu
+bar item and notifications come next.
 
 ## Development
 

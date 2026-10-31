@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useActions } from "./actions";
 import { DaemonBanner } from "./Banners";
 import { ACTIVE, fmtDuration, fmtTs, runtime } from "./format";
 import { TaskPane } from "./TaskPane";
@@ -7,10 +8,21 @@ import { useNow } from "./useQueue";
 
 type Filter = "all" | "active" | "finished";
 
-export function QueueView({ state }: { state: QueueState }) {
+export function QueueView({
+  state,
+  selected,
+  setSelected,
+  onNewTask,
+}: {
+  state: QueueState;
+  selected: number | null;
+  setSelected: (id: number | null) => void;
+  onNewTask: () => void;
+}) {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<number | null>(null);
+  const actions = useActions();
+  const finished = state.tasks.filter((t) => !ACTIVE.includes(t.status)).length;
   const running = state.tasks.filter((t) => t.status === "running").length;
   const queued = state.tasks.filter((t) => t.status === "queued").length;
   const now = useNow(running > 0);
@@ -26,11 +38,17 @@ export function QueueView({ state }: { state: QueueState }) {
   }, [state.tasks, filter, search]);
   const task = state.tasks.find((t) => t.id === selected) ?? null;
 
-  // ↑/↓ move the selection through the rows shown; Esc closes the pane.
+  // As in `task tui`: ↑/↓ move the selection, Esc closes the pane, k kills, r resubmits, n is a new
+  // task. Not while typing, or while a dialog is open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
+      if (document.querySelector(".overlay") || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "Escape") setSelected(null);
+      if (e.key === "n") onNewTask();
+      if (task && e.key === "k" && ACTIVE.includes(task.status)) actions.kill(task);
+      if (task && e.key === "r") actions.resubmit(task, setSelected);
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
       e.preventDefault();
       const i = shown.findIndex((t) => t.id === selected);
@@ -39,7 +57,7 @@ export function QueueView({ state }: { state: QueueState }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shown, selected]);
+  }, [shown, selected, task, actions, onNewTask, setSelected]);
   useEffect(() => {
     if (selected !== null) document.getElementById(`task-${selected}`)?.scrollIntoView({ block: "nearest" });
   }, [selected]);
@@ -77,6 +95,12 @@ export function QueueView({ state }: { state: QueueState }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <button className="btn" disabled={finished === 0 || actions.busy} onClick={() => actions.clear(finished)}>
+          Clear finished
+        </button>
+        <button className="btn primary" onClick={onNewTask} title="New task (n)">
+          New task
+        </button>
       </div>
 
       <div className={`split ${task ? "open" : ""}`}>
@@ -120,7 +144,7 @@ export function QueueView({ state }: { state: QueueState }) {
             </table>
           )}
         </main>
-        {task && <TaskPane task={task} onClose={() => setSelected(null)} />}
+        {task && <TaskPane task={task} onClose={() => setSelected(null)} onQueued={setSelected} />}
       </div>
     </div>
   );

@@ -793,3 +793,284 @@ tr.dim td {
   border: 1px dashed var(--line);
   color: var(--muted);
 }
+
+/* ── Buttons, dialogs, toasts (M3) ──────────────────────── */
+
+.btn {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-sunk);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn.small {
+  font-size: 12px;
+  padding: 2px 10px;
+}
+
+.btn.primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+}
+
+.btn.danger {
+  color: #fff;
+  background: var(--err);
+  border-color: var(--err);
+}
+
+.btn.danger-text {
+  color: var(--err);
+}
+
+button.link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  padding: 0 0 0 6px;
+}
+
+.sidebar .new-task {
+  margin: 12px 4px 0;
+}
+
+.toolbar .search {
+  margin-left: auto;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.28);
+  animation: fade 0.12s ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
+  padding: 18px 20px 16px;
+}
+
+.dialog.sheet {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.dialog h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.dialog-body {
+  color: var(--muted);
+  line-height: 1.5;
+  user-select: text;
+}
+
+.dialog-body p {
+  margin: 10px 0 0;
+}
+
+.dialog-body strong,
+.dialog-body .mono {
+  color: var(--fg);
+}
+
+code.block {
+  display: block;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--fg);
+}
+
+.note {
+  font-size: 12px;
+}
+
+.note.warn {
+  color: var(--warn);
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field.wide {
+  grid-column: 1 / -1;
+}
+
+.field.wider {
+  grid-column: 2 / -1;
+}
+
+.field > span {
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.field small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.field small.inline {
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  outline: none;
+  min-width: 0;
+  user-select: text;
+}
+
+.field textarea {
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.with-button {
+  display: flex;
+  gap: 6px;
+}
+
+.with-button input {
+  flex: 1;
+}
+
+.chips-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 96px;
+  overflow: auto;
+}
+
+.pick {
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.pick.group {
+  font-weight: 600;
+}
+
+.pick.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.banner.wide {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 8px 9px 12px;
+  border-radius: 9px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ok);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+  user-select: text;
+  animation: fade 0.15s ease-out;
+}
+
+.toast span {
+  flex: 1;
+}
+
+.toast.warn {
+  border-left-color: var(--warn);
+}
+
+.toast.error {
+  border-left-color: var(--err);
+}

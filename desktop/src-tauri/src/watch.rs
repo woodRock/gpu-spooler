@@ -87,6 +87,7 @@ fn run(app: &AppHandle) {
     let state = app.state::<AppState>();
     let latest = app.state::<Latest>();
     let (tx, rx) = mpsc::channel::<()>();
+    state.set_wake(tx.clone());
     // Kept alive for the loop; without it (no folder yet, or no file events) the poll still runs.
     let _watcher = watch(&state.paths, tx);
     loop {
@@ -107,7 +108,7 @@ fn run(app: &AppHandle) {
                 while rx.try_recv().is_ok() {}
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
-            // No watcher: poll only.
+            // Unreachable while AppState holds a sender; kept so a lost channel can't spin.
             Err(mpsc::RecvTimeoutError::Disconnected) => std::thread::sleep(POLL),
         }
     }
