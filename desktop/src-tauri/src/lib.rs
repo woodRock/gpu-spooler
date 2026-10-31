@@ -44,6 +44,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             actions::clear_finished,
             actions::start_daemon,
             menubar::open_main,
+            menubar::hide_popover,
             menubar::quit,
             menubar::launch_at_login,
             menubar::set_launch_at_login,

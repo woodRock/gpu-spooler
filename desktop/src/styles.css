@@ -6,6 +6,9 @@
   --line: #e5e7eb;
   --accent: #3b6fe0;
   --chip: #f0f2f5;
+  --raised: #ffffff;
+  --accent-fill: #3b6fe0;
+  --on-accent: #ffffff;
   --side: #f3f4f6;
   --select: #e8effd;
   --info: #3b6fe0;
@@ -37,6 +40,10 @@
     --line: #2a2e37;
     --accent: #6b97ff;
     --chip: #232731;
+    --raised: #1f2229;
+    /* A lighter accent reads as text on dark, but white on it is too faint for a button. */
+    --accent-fill: #3d6be0;
+    --on-accent: #ffffff;
     --side: #121419;
     --select: #1f2b45;
     --info: #6b97ff;
@@ -317,8 +324,10 @@ tbody tr:hover {
 
 .status::before {
   content: "";
-  width: 7px;
-  height: 7px;
+  box-sizing: border-box;
+  flex: none;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--status);
 }
@@ -822,13 +831,13 @@ tr.dim td {
 }
 
 .btn.primary {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
+  color: var(--on-accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, #000);
+  background: color-mix(in srgb, var(--accent-fill) 88%, #000);
 }
 
 .btn.danger {
@@ -877,7 +886,7 @@ button.link {
   width: min(440px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow: auto;
-  background: var(--bg);
+  background: var(--raised);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
@@ -1055,7 +1064,7 @@ code.block {
   gap: 8px;
   padding: 9px 8px 9px 12px;
   border-radius: 9px;
-  background: var(--bg);
+  background: var(--raised);
   border: 1px solid var(--line);
   border-left: 3px solid var(--ok);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
@@ -1099,6 +1108,7 @@ code.block {
 
 .pop-head .dot {
   display: inline-block;
+  margin-right: 3px;
 }
 
 .pop-stats {
@@ -1198,4 +1208,85 @@ code.block {
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+}
+
+/* ── Keyboard focus (M5) ────────────────────────────────── */
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn:focus-visible,
+.nav:focus-visible,
+.pick:focus-visible,
+.pop-row:focus-visible,
+.segmented button:focus-visible {
+  outline-offset: 1px;
+}
+
+tbody tr:focus-visible {
+  outline-offset: -2px;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  background: var(--bg-sunk);
+  color: var(--fg);
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+}
+
+.shortcuts h3 {
+  grid-column: 1 / -1;
+  margin: 10px 0 2px;
+  font-size: 11px;
+  font-weight: 550;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.shortcuts div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--fg);
+}
+
+.shortcuts span:last-child {
+  display: flex;
+  gap: 3px;
+}
+
+button.link.keys-hint {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sidebar-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }

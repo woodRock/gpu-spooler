@@ -66,24 +66,26 @@ export function UiProvider({ children }: { children: ReactNode }) {
 }
 
 function ConfirmDialog({ opts, onClose }: { opts: ConfirmOpts; onClose: (ok: boolean) => void }) {
-  const button = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const dismissButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    button.current?.focus();
+    // Return confirms what is focused: the safe choice when the action can't be undone.
+    (opts.danger ? dismissButton : confirmButton).current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose(false);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
+  }, [onClose, opts.danger]);
   return (
     <Modal onClose={() => onClose(false)} className="confirm">
       <h2>{opts.title}</h2>
       {opts.body && <div className="dialog-body">{opts.body}</div>}
       <div className="dialog-buttons">
-        <button className="btn" onClick={() => onClose(false)}>
+        <button ref={dismissButton} className="btn" onClick={() => onClose(false)}>
           {opts.dismiss ?? "Cancel"}
         </button>
-        <button ref={button} className={`btn ${opts.danger ? "danger" : "primary"}`} onClick={() => onClose(true)}>
+        <button ref={confirmButton} className={`btn ${opts.danger ? "danger" : "primary"}`} onClick={() => onClose(true)}>
           {opts.confirm}
         </button>
       </div>

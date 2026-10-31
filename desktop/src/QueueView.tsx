@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useActions } from "./actions";
 import { DaemonBanner } from "./Banners";
 import { ACTIVE, fmtDuration, fmtTs, runtime } from "./format";
+import { useKeys } from "./keys";
 import { TaskPane } from "./TaskPane";
 import type { QueueState, Task } from "./types";
 import { useNow } from "./useQueue";
@@ -38,15 +39,18 @@ export function QueueView({
   }, [state.tasks, filter, search]);
   const task = state.tasks.find((t) => t.id === selected) ?? null;
 
+  const searchBox = useRef<HTMLInputElement>(null);
+
   // As in `task tui`: ↑/↓ move the selection, Esc closes the pane, k kills, r resubmits, n is a new
-  // task. Not while typing, or while a dialog is open.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target;
-      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
-      if (document.querySelector(".overlay") || e.metaKey || e.ctrlKey || e.altKey) return;
+  // task; / filters. Not while typing, or while a dialog is open (see keys.tsx).
+  useKeys(
+    (e) => {
       if (e.key === "Escape") setSelected(null);
       if (e.key === "n") onNewTask();
+      if (e.key === "/") {
+        e.preventDefault();
+        searchBox.current?.focus();
+      }
       if (task && e.key === "k" && ACTIVE.includes(task.status)) actions.kill(task);
       if (task && e.key === "r") actions.resubmit(task, setSelected);
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -54,10 +58,21 @@ export function QueueView({
       const i = shown.findIndex((t) => t.id === selected);
       const next = e.key === "ArrowDown" ? Math.min(i + 1, shown.length - 1) : Math.max(i - 1, 0);
       if (shown[next]) setSelected(shown[next].id);
+    },
+    [shown, selected, task, actions, onNewTask, setSelected],
+  );
+  // ⌘F filters too, as in any Mac app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key.toLowerCase() === "f" && !document.querySelector(".overlay")) {
+        e.preventDefault();
+        searchBox.current?.focus();
+        searchBox.current?.select();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shown, selected, task, actions, onNewTask, setSelected]);
+  }, []);
   useEffect(() => {
     if (selected !== null) document.getElementById(`task-${selected}`)?.scrollIntoView({ block: "nearest" });
   }, [selected]);
@@ -89,11 +104,18 @@ export function QueueView({
           ))}
         </div>
         <input
+          ref={searchBox}
           className="search"
           type="search"
-          placeholder="Filter by label, command, server…"
+          placeholder="Filter by label, command, server…  /"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            // Esc clears the filter, then leaves the box (so ↑/↓ move through the rows again).
+            if (e.key !== "Escape") return;
+            if (search) setSearch("");
+            else e.currentTarget.blur();
+          }}
         />
         <button className="btn" disabled={finished === 0 || actions.busy} onClick={() => actions.clear(finished)}>
           Clear finished

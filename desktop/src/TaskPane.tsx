@@ -3,6 +3,7 @@ import { useActions } from "./actions";
 import { lineText, parseAnsi, type Line } from "./ansi";
 import { commands } from "./bindings";
 import { ACTIVE } from "./format";
+import { useKeys } from "./keys";
 import type { LogChunk, Task } from "./types";
 
 type Tab = "log" | "info";
@@ -24,6 +25,14 @@ export function TaskPane({
 }) {
   const [tab, setTab] = useState<Tab>("log");
   const actions = useActions();
+  // l and i switch tabs, as in `task tui`.
+  useKeys(
+    (e) => {
+      if (e.key === "l") setTab("log");
+      if (e.key === "i") setTab("info");
+    },
+    [],
+  );
   const active = ACTIVE.includes(task.status);
   return (
     <section className="pane">
@@ -97,6 +106,13 @@ function LogView({ task }: { task: Task }) {
   const scroller = useRef<HTMLDivElement>(null);
   const offset = useRef(0);
   const active = ACTIVE.includes(task.status);
+  // f follows the newest output (and jumps to it).
+  useKeys(
+    (e) => {
+      if (e.key === "f") setFollow((on) => !on);
+    },
+    [],
+  );
 
   const take = (c: LogChunk) => {
     offset.current = c.offset;

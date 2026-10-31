@@ -1,0 +1,53 @@
+name: Desktop
+
+# The desktop app (desktop/): lint and test its Rust side, check the committed TypeScript bindings
+# are current, typecheck the frontend, and build the macOS .dmg as an artifact. Runs when the app,
+# the library it links, or this file changes. Tagged releases build a universal .dmg in
+# release.yml.
+
+on:
+  push:
+    branches: [main]
+    paths: ["desktop/**", "crates/gpu-spooler/**", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["desktop/**", "crates/gpu-spooler/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    name: Desktop app (macOS)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: cargo fmt --check
+        working-directory: desktop/src-tauri
+      - run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: desktop/src-tauri
+      - name: Tests (they also write src/bindings.ts)
+        run: cargo test --locked
+        working-directory: desktop/src-tauri
+      - name: The committed bindings match the Rust types (else run `npm run bindings` and commit)
+        run: git diff --exit-code -- src/bindings.ts
+      - name: Typecheck and build the frontend
+        run: npm run build
+      - name: Build the .dmg
+        run: npx tauri build --bundles dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gpu-spooler-desktop-macos-arm64
+          path: desktop/src-tauri/target/release/bundle/dmg/*.dmg
