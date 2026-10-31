@@ -1,11 +1,9 @@
-//! Watches ~/.gpu-spooler and pushes a fresh [`QueueState`] to the window when the queue changes.
-//!
-//! One SQLite connection stays open for the app's lifetime. Opening and closing one per read would
-//! checkpoint the WAL whenever the daemon is stopped, and that is itself a change to the folder
-//! being watched.
+//! Watches ~/.gpu-spooler and pushes a fresh [`QueueState`] and [`GpuState`] to the window when
+//! the queue or the GPU snapshot changes.
 
+use crate::gpus::{self, GpuState};
 use crate::queue::{self, QueueState};
-use gpu_spooler::db;
+use crate::state::AppState;
 use gpu_spooler::paths::Paths;
 use notify::{RecursiveMode, Watcher};
 use std::path::Path;
@@ -19,13 +17,19 @@ pub const DEBOUNCE: Duration = Duration::from_millis(250);
 /// Read this often regardless: file events can be coalesced or missed for WAL writes.
 pub const POLL: Duration = Duration::from_secs(5);
 
-/// The latest state, for the window's first read (`queue_state`) before any event arrives.
+/// The latest states, for the window's first read (`queue_state`, `gpu_state`) before any event.
 #[derive(Default)]
-pub struct Latest(pub Mutex<Option<QueueState>>);
+pub struct Latest {
+    pub queue: Mutex<Option<QueueState>>,
+    pub gpus: Mutex<Option<GpuState>>,
+}
 
 /// The files whose changes can change the queue view.
 fn relevant(path: &Path) -> bool {
-    matches!(path.file_name().and_then(|n| n.to_str()), Some("tasks.db" | "tasks.db-wal" | "daemon.pid" | "hosts.toml"))
+    matches!(
+        path.file_name().and_then(|n| n.to_str()),
+        Some("tasks.db" | "tasks.db-wal" | "daemon.pid" | "hosts.toml" | "gpu_snapshot.json")
+    )
 }
 
 /// The state to send, if it differs from the last one sent. A failed read keeps the last tasks,
@@ -44,46 +48,56 @@ pub fn changed(last: &mut Option<QueueState>, mut state: QueueState) -> Option<Q
     Some(state)
 }
 
-pub fn spawn(app: AppHandle, paths: Paths) {
-    std::thread::Builder::new()
-        .name("queue-watch".into())
-        .spawn(move || run(&app, &paths))
-        .expect("could not start the queue watcher");
+pub fn spawn(app: AppHandle) {
+    std::thread::Builder::new().name("watch".into()).spawn(move || run(&app)).expect("could not start the watcher");
 }
 
-fn run(app: &AppHandle, paths: &Paths) {
+/// One read of everything the window shows.
+fn read(state: &AppState) -> (QueueState, GpuState) {
+    let paths = &state.paths;
+    let cfg = gpu_spooler::config::load_config(paths).map_err(|e| e.0);
+    let queue = state.with_con(|c| queue::read(c, paths, cfg.as_ref().map_err(String::as_str))).unwrap_or_else(|e| {
+        QueueState {
+            tasks: vec![],
+            daemon_pid: gpu_spooler::core::daemon_pid(paths),
+            gpus_in_use: 0,
+            max_gpus: None,
+            error: Some(format!("database: {e}")),
+        }
+    });
+    let running: Vec<_> = queue.tasks.iter().filter(|t| t.status == "running").cloned().collect();
+    let snapshot = gpu_spooler::core::read_gpu_snapshot(paths);
+    let gpus = gpus::build(snapshot.as_ref(), cfg.as_ref().ok(), &running, &gpus::idle(cfg.as_ref().ok()));
+    (queue, gpus)
+}
+
+fn watch(paths: &Paths, tx: mpsc::Sender<()>) -> Option<notify::RecommendedWatcher> {
+    std::fs::create_dir_all(&paths.state).ok()?;
+    let mut w = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        if res.is_ok_and(|e| e.paths.iter().any(|p| relevant(p))) {
+            let _ = tx.send(());
+        }
+    })
+    .ok()?;
+    w.watch(&paths.state, RecursiveMode::NonRecursive).ok()?;
+    Some(w)
+}
+
+fn run(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let latest = app.state::<Latest>();
     let (tx, rx) = mpsc::channel::<()>();
     // Kept alive for the loop; without it (no folder yet, or no file events) the poll still runs.
-    let _watcher = std::fs::create_dir_all(&paths.state).ok().and_then(|_| {
-        let mut w = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if res.is_ok_and(|e| e.paths.iter().any(|p| relevant(p))) {
-                let _ = tx.send(());
-            }
-        })
-        .ok()?;
-        w.watch(&paths.state, RecursiveMode::NonRecursive).ok()?;
-        Some(w)
-    });
-
-    let latest = app.state::<Latest>();
-    let mut con = None;
+    let _watcher = watch(&state.paths, tx);
     loop {
-        if con.is_none() {
-            con = db::open(paths).ok();
+        let (queue, gpus) = read(&state);
+        if let Some(queue) = changed(&mut latest.queue.lock().unwrap(), queue) {
+            let _ = queue.emit(app);
         }
-        let state = match &con {
-            Some(c) => queue::read(c, paths),
-            None => QueueState {
-                tasks: vec![],
-                daemon_pid: gpu_spooler::core::daemon_pid(paths),
-                gpus_in_use: 0,
-                max_gpus: None,
-                error: Some(format!("database: could not open {}", paths.db().display())),
-            },
-        };
-        let mut last = latest.0.lock().unwrap();
-        if let Some(state) = changed(&mut last, state) {
-            let _ = state.emit(app);
+        let mut last = latest.gpus.lock().unwrap();
+        if last.as_ref() != Some(&gpus) {
+            *last = Some(gpus.clone());
+            let _ = gpus.emit(app);
         }
         drop(last);
 
@@ -136,6 +150,7 @@ mod tests {
         assert!(relevant(Path::new("/h/.gpu-spooler/tasks.db-wal")));
         assert!(relevant(Path::new("/h/.gpu-spooler/daemon.pid")));
         assert!(!relevant(Path::new("/h/.gpu-spooler/tasks.db-shm")));
-        assert!(!relevant(Path::new("/h/.gpu-spooler/gpu_snapshot.json")));
+        assert!(relevant(Path::new("/h/.gpu-spooler/gpu_snapshot.json")));
+        assert!(!relevant(Path::new("/h/.gpu-spooler/gpu_snapshot.request")));
     }
 }

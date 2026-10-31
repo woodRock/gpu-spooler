@@ -1,6 +1,7 @@
 //! The queue as the window shows it: one read of the database, the daemon's PID file and the GPU
 //! cap, sent to the frontend whole whenever it changes.
 
+use gpu_spooler::config::Config;
 use gpu_spooler::db::{self, Task};
 use gpu_spooler::paths::Paths;
 use rusqlite::Connection;
@@ -23,13 +24,13 @@ pub struct QueueState {
     pub error: Option<String>,
 }
 
-/// Read the queue through an open connection. A config error does not stop the read: the cap is
-/// then unknown, and the error is reported.
-pub fn read(con: &Connection, paths: &Paths) -> QueueState {
+/// Read the queue through an open connection. A config error (`cfg` Err) does not stop the read:
+/// the cap is then unknown, and the error is reported.
+pub fn read(con: &Connection, paths: &Paths, cfg: Result<&Config, &str>) -> QueueState {
     let daemon_pid = gpu_spooler::core::daemon_pid(paths);
-    let (max_gpus, config_error) = match gpu_spooler::config::load_config(paths) {
+    let (max_gpus, config_error) = match cfg {
         Ok(cfg) => (cfg.max_gpus, None),
-        Err(e) => (None, Some(format!("config: {}", e.0))),
+        Err(e) => (None, Some(format!("config: {e}"))),
     };
     let tasks = db::list_tasks(con, Some(LIST_LIMIT)).and_then(|t| Ok((t, db::gpus_in_use(con)?)));
     match tasks {
@@ -55,12 +56,12 @@ mod tests {
         )
         .unwrap();
         con.execute("INSERT INTO tasks (command, submitted_at, working_dir) VALUES ('b', 2, '/')", []).unwrap();
-        let s = read(&con, &paths);
+        let s = read(&con, &paths, Ok(&gpu_spooler::config::load_config(&paths).unwrap()));
         assert_eq!(s.tasks.iter().map(|t| t.command.as_str()).collect::<Vec<_>>(), ["b", "a"]);
         assert_eq!((s.gpus_in_use, s.daemon_pid, s.error), (2, None, None));
 
         std::fs::write(paths.pid_file(), std::process::id().to_string()).unwrap();
-        assert_eq!(read(&con, &paths).daemon_pid, Some(std::process::id() as i64));
+        assert_eq!(read(&con, &paths, Err("x")).daemon_pid, Some(std::process::id() as i64));
     }
 
     #[test]
@@ -69,9 +70,7 @@ mod tests {
         let paths = Paths::for_home(home.path());
         let con = db::open(&paths).unwrap();
         con.execute("INSERT INTO tasks (command, submitted_at, working_dir) VALUES ('b', 2, '/')", []).unwrap();
-        std::fs::write(&paths.config, "[limits\n").unwrap();
-        let s = read(&con, &paths);
-        assert_eq!(s.tasks.len(), 1);
-        assert!(s.error.unwrap().starts_with("config: "));
+        let s = read(&con, &paths, Err("bad toml"));
+        assert_eq!((s.tasks.len(), s.max_gpus, s.error.as_deref()), (1, None, Some("config: bad toml")));
     }
 }

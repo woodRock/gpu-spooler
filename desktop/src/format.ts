@@ -1,5 +1,5 @@
 // The CLI's formats (crates/gpu-spooler/src/fmt.rs, core::runtime), so the app and `task list` agree.
-import type { Task_Serialize as Task } from "./bindings";
+import type { Task } from "./types";
 
 export const ACTIVE = ["queued", "running"];
 
