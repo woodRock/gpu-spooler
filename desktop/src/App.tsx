@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActions } from "./actions";
+import { events } from "./bindings";
 import { needsConnect } from "./Banners";
 import { GpuView } from "./GpuView";
 import { HostsView } from "./HostsView";
@@ -25,6 +26,19 @@ function Main() {
   const [selected, setSelected] = useState<number | null>(null);
   const [newTask, setNewTask] = useState(false);
   const actions = useActions();
+  // From the menu bar: show a task, or the New Task sheet.
+  useEffect(() => {
+    const unlisten = events.showRequest.listen(({ payload }) => {
+      if (payload.task != null) {
+        setView("queue");
+        setSelected(payload.task);
+      }
+      if (payload.new_task) setNewTask(true);
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
   if (!queue || !gpus) return <div className="loading">Reading the queue…</div>;
 
   const daemonPid = queue.daemon_pid;
