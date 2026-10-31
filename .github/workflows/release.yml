@@ -1,8 +1,9 @@
 name: Release
 
-# On a v* tag: build `task` for each platform and publish them as a GitHub release, which
-# install.sh downloads (releases/latest/download/gpu-spooler-<target>.tar.gz). On a pull request
-# that changes this file, or by hand: build and smoke-test only, publish nothing.
+# On a v* tag: build `task` for each platform and the desktop app as a universal macOS .dmg, and
+# publish them as a GitHub release, which install.sh downloads
+# (releases/latest/download/gpu-spooler-<target>.tar.gz). On a pull request that changes this
+# file, or by hand: build and smoke-test only, publish nothing.
 
 on:
   push:
@@ -71,10 +72,51 @@ jobs:
           name: gpu-spooler-${{ matrix.target }}
           path: dist/*
 
+  desktop:
+    name: Build the desktop app (macOS, universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The desktop app's versions match Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          for f in desktop/package.json desktop/src-tauri/tauri.conf.json; do
+            grep -q "\"version\": \"${version}\"" "$f" || { echo "$f is not at version ${version}"; exit 1; }
+          done
+          grep -q "^version = \"${version}\"" desktop/src-tauri/Cargo.toml || { echo "desktop/src-tauri/Cargo.toml is not at ${version}"; exit 1; }
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: universal
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Build
+        working-directory: desktop
+        run: |
+          npm ci
+          npx tauri build --target universal-apple-darwin --bundles dmg
+      - name: Package
+        run: |
+          name=gpu-spooler-desktop-macos-universal.dmg
+          mkdir -p dist
+          cp desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/$name"
+          (cd dist && shasum -a 256 "$name" > "$name.sha256" && cat "$name.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gpu-spooler-desktop-macos
+          path: dist/*
+
   publish:
     name: Publish the release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,4 +134,6 @@ jobs:
         run: |
           ls -l dist
           gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" \
-            --notes "Install or upgrade: \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | bash\`"
+            --notes "Install or upgrade the \`task\` command: \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | bash\`
+
+          Desktop app (macOS): download \`gpu-spooler-desktop-macos-universal.dmg\` and drag gpu-spooler to Applications. It is not signed, so open it the first time with right-click → Open. It needs the \`task\` command installed."

@@ -4,13 +4,19 @@ A desktop app for gpu-spooler (Tauri 2, React and TypeScript). It links the `gpu
 directly and reads the same `~/.gpu-spooler` state as `task` and `task tui`. It never runs a daemon
 of its own.
 
-**Status:** M4. A live queue with each task's log and details, a GPU heatmap and a hosts table. Kill,
+**Status:** M5. A live queue with each task's log and details, a GPU heatmap and a hosts table. Kill,
 resubmit, clear finished, a New Task form and starting the daemon, each confirmed first. A menu bar
 item with the running count and a popover, notifications when a task ends, and an "Open at login"
 switch. Closing the window keeps the app in the menu bar; Quit (⌘Q or the popover) ends it, and the
-daemon keeps running either way.
+daemon keeps running either way. Press `?` in the app for its keyboard shortcuts.
 
 Notifications need permission: System Settings → Notifications → gpu-spooler.
+
+## Install
+
+Each release has `gpu-spooler-desktop-macos-universal.dmg`: open it and drag gpu-spooler to
+Applications. It is not signed, so open it the first time with right-click → Open. The app drives
+the `task` command, so install that too (see the main README).
 
 ## Development
 
@@ -22,7 +28,16 @@ npm run tauri dev        # the app, with hot reload
 npm run build            # typecheck + build the frontend
 npm run bindings         # regenerate src/bindings.ts after changing a Rust type the frontend sees
 cargo test --manifest-path src-tauri/Cargo.toml
+npx tauri build --bundles dmg   # a release .dmg in src-tauri/target/release/bundle/dmg/
 ```
+
+For design work, `npm run dev` and open http://localhost:1420 in a browser (add `?window=popover`
+for the popover): outside Tauri the app runs on made-up data from `src/dev/mock.ts`, which never
+ships in a build.
+
+CI (`.github/workflows/desktop.yml`) runs fmt, clippy and the tests, checks `src/bindings.ts` is
+current, and builds the `.dmg` on every change to the app or the library. A `v*` tag adds a
+universal `.dmg` to the release (`release.yml`).
 
 `src-tauri` is not a member of the root Cargo workspace and has its own lockfile, so building or
 testing the CLI never builds Tauri.

@@ -36,6 +36,8 @@ export const commands = {
 	startDaemon: () => typedError<number | null, string>(__TAURI_INVOKE("start_daemon")),
 	/**  Show the main window, on a task or the New Task sheet. */
 	openMain: (task: number | null, newTask: boolean) => typedError<null, string>(__TAURI_INVOKE("open_main", { task, newTask })),
+	/**  Esc in the popover. */
+	hidePopover: () => __TAURI_INVOKE<void>("hide_popover"),
 	quit: () => __TAURI_INVOKE<void>("quit"),
 	/**  Whether the app starts at login (a LaunchAgent, in the menu bar only). */
 	launchAtLogin: () => typedError<boolean, string>(__TAURI_INVOKE("launch_at_login")),

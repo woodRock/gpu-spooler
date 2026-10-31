@@ -186,6 +186,15 @@ pub fn open_main(app: AppHandle, task: Option<i64>, new_task: bool) -> Result<()
     Ok(())
 }
 
+/// Esc in the popover.
+#[tauri::command]
+#[specta::specta]
+pub fn hide_popover(app: AppHandle) {
+    if let Some(p) = app.get_webview_window(POPOVER) {
+        let _ = p.hide();
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn quit(app: AppHandle) {

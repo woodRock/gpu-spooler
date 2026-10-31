@@ -15,12 +15,20 @@ export function Popover() {
   useEffect(() => {
     const onFocus = () => setVisible(true);
     const onBlur = () => setVisible(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") commands.hidePopover();
+      // ⌘N and ⌘O, as the buttons do.
+      if (e.metaKey && e.key.toLowerCase() === "n") commands.openMain(null, true);
+      if (e.metaKey && e.key.toLowerCase() === "o") commands.openMain(null, false);
+    };
     window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("keydown", onKey);
     commands.launchAtLogin().then((r) => r.status === "ok" && setLogin(r.data));
     return () => {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("keydown", onKey);
     };
   }, []);
   useGpuKeepAlive(visible);

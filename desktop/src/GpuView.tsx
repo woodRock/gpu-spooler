@@ -76,12 +76,13 @@ export function GpuView({ gpus, daemonPid }: { gpus: GpuState; daemonPid: number
 function HostRow({ host: h }: { host: HostView }) {
   const free = h.gpus.filter((g) => g.state === "free").length;
   const models = [...new Set(h.gpus.map((g) => model(g.name)))].join(", ");
-  const gb = Math.round((h.gpus[0]?.mem_total_mb ?? 0) / 1024);
+  // Decimal GB, as GPUs are sold (an A40 reads 48 GB, as in `task gpus`).
+  const gb = Math.round(((h.gpus[0]?.mem_total_mb ?? 0) * 1.048576) / 1000);
   return (
     <div className="host-row">
       <div className="host-name">
         <strong>{h.name}</strong>
-        <div className="muted small">
+        <div className="muted small" title={`${models} · ${gb} GB`}>
           {models} · {gb} GB
         </div>
         <div className="small">
