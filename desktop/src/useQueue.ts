@@ -1,3 +1,4 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { commands, events } from "./bindings";
 import type { GpuState, QueueState } from "./types";
@@ -43,11 +44,15 @@ export function useNow(active: boolean, everyMs = 1000): number {
 }
 
 /** The daemon only refreshes the GPU snapshot while it is asked to (for two minutes after each
- * ask), so ask now and every minute while `active` and the window is visible. */
+ * ask), and each refresh queries every server, so ask now and every minute only while `active`
+ * and this window is on screen (a closed main window or popover is only hidden). */
 export function useGpuKeepAlive(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    const ask = () => document.visibilityState === "visible" && commands.requestGpuSnapshot();
+    const ask = async () => {
+      if (document.visibilityState !== "visible" || !(await getCurrentWindow().isVisible())) return;
+      await commands.requestGpuSnapshot();
+    };
     ask();
     const id = setInterval(ask, 60_000);
     document.addEventListener("visibilitychange", ask);

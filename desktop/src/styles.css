@@ -1074,3 +1074,128 @@ code.block {
 .toast.error {
   border-left-color: var(--err);
 }
+
+/* ── Menu bar popover (M4) ──────────────────────────────── */
+
+.pop {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.pop.loading {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+
+.pop-head .dot {
+  display: inline-block;
+}
+
+.pop-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.pop-stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: 8px;
+  background: var(--bg-sunk);
+}
+
+.pop-stats strong {
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-stats strong.err {
+  color: var(--err);
+}
+
+.pop-stats span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pop-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  padding: 4px 0;
+}
+
+.pop-list h3 {
+  margin: 8px 14px 2px;
+  font-size: 11px;
+  font-weight: 550;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.pop-empty {
+  padding: 18px 14px;
+  text-align: center;
+}
+
+.pop-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 6px 14px;
+}
+
+.pop-row:hover {
+  background: var(--bg-sunk);
+}
+
+.pop-task {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pop-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.pop-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}

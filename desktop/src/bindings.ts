@@ -34,12 +34,19 @@ export const commands = {
 	clearFinished: () => typedError<Cleared, string>(__TAURI_INVOKE("clear_finished")),
 	/**  Start the daemon with the installed `task`: its PID, or None if it was already running. */
 	startDaemon: () => typedError<number | null, string>(__TAURI_INVOKE("start_daemon")),
+	/**  Show the main window, on a task or the New Task sheet. */
+	openMain: (task: number | null, newTask: boolean) => typedError<null, string>(__TAURI_INVOKE("open_main", { task, newTask })),
+	quit: () => __TAURI_INVOKE<void>("quit"),
+	/**  Whether the app starts at login (a LaunchAgent, in the menu bar only). */
+	launchAtLogin: () => typedError<boolean, string>(__TAURI_INVOKE("launch_at_login")),
+	setLaunchAtLogin: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_launch_at_login", { enabled })),
 };
 
 /** Events */
 export const events = {
 	gpuState: makeEvent<GpuState_Serialize, GpuState_Deserialize>("gpu-state"),
 	queueState: makeEvent<QueueState_Serialize, QueueState_Deserialize>("queue-state"),
+	showRequest: makeEvent<ShowRequest_Serialize, ShowRequest_Deserialize>("show-request"),
 };
 
 /* Types */
@@ -205,6 +212,21 @@ export type QueueState_Serialize = {
 	max_gpus: number | null,
 	/**  Why the read failed (the previous tasks are kept); None when it worked. */
 	error: string | null,
+};
+
+/**  Asks the main window to show a task, or the New Task sheet. */
+export type ShowRequest = ShowRequest_Serialize | ShowRequest_Deserialize;
+
+/**  Asks the main window to show a task, or the New Task sheet. */
+export type ShowRequest_Deserialize = {
+	task?: number | null,
+	new_task: boolean,
+};
+
+/**  Asks the main window to show a task, or the New Task sheet. */
+export type ShowRequest_Serialize = {
+	task: number | null,
+	new_task: boolean,
 };
 
 /**

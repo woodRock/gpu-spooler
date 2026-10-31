@@ -30,10 +30,11 @@ def test_submit_runs_to_done_and_syncs_log(ts):
     assert "network: jump (forced)" in out
 
 
-def test_exit_code_retries_then_fails(ts):
+def test_a_failed_command_runs_once(ts):
     tid = ts.submit("submit", "-g", "1", "echo attempt; exit 3")
     r = ts.wait_status(tid, ("failed", "done", "lost"), 60)
-    assert r["status"] == "failed" and r["exit_code"] == 3 and r["retry_count"] == 3
+    assert r["status"] == "failed" and r["exit_code"] == 3 and r["retry_count"] == 0
+    assert log_body(ts, tid).count("attempt\n") == 1
 
 
 def test_readoption_after_daemon_restart(ts):
@@ -193,7 +194,7 @@ def test_wait_exit_codes_done_and_failed(ts):
     assert r.returncode == 0 and r.stdout == ""
     assert r.stderr.startswith(f"task {ok}: done (exit 0")
     r = ts.run("wait", str(bad), check=False, timeout=90)
-    assert r.returncode == 3 and ts.row(bad)["retry_count"] == 3
+    assert r.returncode == 3 and ts.row(bad)["retry_count"] == 0
     assert f"task {bad}: failed (exit 3" in r.stderr
     # Already finished: returns at once; several ids use the first non-zero code.
     start = time.time()

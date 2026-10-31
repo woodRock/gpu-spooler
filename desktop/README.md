@@ -4,9 +4,13 @@ A desktop app for gpu-spooler (Tauri 2, React and TypeScript). It links the `gpu
 directly and reads the same `~/.gpu-spooler` state as `task` and `task tui`. It never runs a daemon
 of its own.
 
-**Status:** M3. A live queue with each task's log and details, a GPU heatmap and a hosts table. Kill,
-resubmit, clear finished, a New Task form and starting the daemon, each confirmed first. The menu
-bar item and notifications come next.
+**Status:** M4. A live queue with each task's log and details, a GPU heatmap and a hosts table. Kill,
+resubmit, clear finished, a New Task form and starting the daemon, each confirmed first. A menu bar
+item with the running count and a popover, notifications when a task ends, and an "Open at login"
+switch. Closing the window keeps the app in the menu bar; Quit (⌘Q or the popover) ends it, and the
+daemon keeps running either way.
+
+Notifications need permission: System Settings → Notifications → gpu-spooler.
 
 ## Development
 

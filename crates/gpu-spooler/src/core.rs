@@ -17,7 +17,9 @@ use std::time::{Duration, Instant};
 
 pub const ACTIVE: [&str; 2] = ["queued", "running"];
 pub const FINISHED: [&str; 5] = ["done", "failed", "killed", "cancelled", "lost"];
-pub const MAX_RETRIES: i64 = 3;
+/// How often a task whose launch failed (the command never started: an ssh error, say) goes back
+/// to the queue before it fails. A command that ran and exited non-zero is never re-run.
+pub const MAX_LAUNCH_RETRIES: i64 = 3;
 
 // Exit codes for `task wait` (see wait_exit_code).
 pub const EXIT_KILLED: i32 = 130;
@@ -230,7 +232,7 @@ pub fn task_details(t: &Task, cfg: Option<&Config>, snapshot: Option<&Value>, no
         add("Exit code", c.to_string());
     }
     if t.retry_count != 0 {
-        add("Retries", format!("{}/{MAX_RETRIES}", t.retry_count));
+        add("Launch retries", format!("{}/{MAX_LAUNCH_RETRIES}", t.retry_count));
     }
     if let Some(l) = set(&t.log_file) {
         add("Log file", l);
@@ -294,7 +296,7 @@ pub fn getuser() -> String {
 
 // ── Changing the queue ────────────────────────────────────────────────────────
 
-/// Fields reset when a task goes back to the queue for another attempt.
+/// Fields reset when a task goes back to the queue after a failed launch.
 pub const REQUEUE: &str = "status='queued', ssh_pid=NULL, started_at=NULL, finished_at=NULL, server=NULL, \
 gpu_indices=NULL, job_key=NULL, remote_pid=NULL, log_offset=0, remote_dir=NULL, retry_count=retry_count+1";
 

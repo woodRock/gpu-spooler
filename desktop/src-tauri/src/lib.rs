@@ -4,6 +4,7 @@
 mod actions;
 mod gpus;
 mod logs;
+mod menubar;
 mod queue;
 mod state;
 mod watch;
@@ -42,8 +43,12 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             actions::submit_task,
             actions::clear_finished,
             actions::start_daemon,
+            menubar::open_main,
+            menubar::quit,
+            menubar::launch_at_login,
+            menubar::set_launch_at_login,
         ])
-        .events(tauri_specta::collect_events![QueueState, GpuState])
+        .events(tauri_specta::collect_events![QueueState, GpuState, menubar::ShowRequest])
         // i64 fields become `number`: IDs, PIDs, MB, bytes and seconds are far below 2^53.
         .dangerously_cast_bigints_to_number()
 }
@@ -52,16 +57,34 @@ pub fn run() {
     let builder = specta_builder();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![menubar::HIDDEN_ARG]),
+        ))
         .invoke_handler(builder.invoke_handler())
         .manage(state::AppState::new(Paths::from_env()))
         .manage(watch::Latest::default())
+        .manage(menubar::PopoverState::default())
+        .on_window_event(menubar::on_window_event)
         .setup(move |app| {
             builder.mount_events(app);
+            menubar::setup(app.handle())?;
             watch::spawn(app.handle().clone());
+            // Started at login: the menu bar only, until the icon or the Dock is clicked.
+            if !std::env::args().any(|a| a == menubar::HIDDEN_ARG) {
+                menubar::show_main(app.handle());
+            }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running the gpu-spooler app");
+        .build(tauri::generate_context!())
+        .expect("error while building the gpu-spooler app")
+        .run(|app, event| {
+            // A click on the Dock icon with no window showing.
+            if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = event {
+                menubar::show_main(app);
+            }
+        });
 }
 
 #[cfg(test)]

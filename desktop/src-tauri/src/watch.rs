@@ -2,6 +2,7 @@
 //! the queue or the GPU snapshot changes.
 
 use crate::gpus::{self, GpuState};
+use crate::menubar;
 use crate::queue::{self, QueueState};
 use crate::state::AppState;
 use gpu_spooler::paths::Paths;
@@ -92,7 +93,10 @@ fn run(app: &AppHandle) {
     let _watcher = watch(&state.paths, tx);
     loop {
         let (queue, gpus) = read(&state);
+        let prev = latest.queue.lock().unwrap().clone();
         if let Some(queue) = changed(&mut latest.queue.lock().unwrap(), queue) {
+            menubar::notify_ended(app, prev.as_ref(), &queue);
+            menubar::update_tray(app, &queue);
             let _ = queue.emit(app);
         }
         let mut last = latest.gpus.lock().unwrap();

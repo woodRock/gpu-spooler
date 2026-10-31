@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window: core events (the state listeners), the app's own commands, and the folder picker for a new task's directory.",
-  "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open"]
+  "description": "The main window and the menu bar popover: core events and window state, the app's own commands, and the folder picker for a new task's directory.",
+  "windows": [
+    "main",
+    "popover"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open"
+  ]
 }

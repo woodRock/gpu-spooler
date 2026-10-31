@@ -199,7 +199,7 @@ task submit -g 0 -H local -- 'python3 make_plots.py && echo done'
 | `queued` | Waiting for a free GPU |
 | `running` | Currently executing on a server |
 | `done` | Finished successfully (exit 0) |
-| `failed` | Finished with a non-zero exit code (after 3 automatic retries) |
+| `failed` | Finished with a non-zero exit code. Each task runs once: `task resubmit ID` runs it again. (A launch that fails before the command starts, such as an ssh error, is re-queued up to 3 times.) |
 | `killed` | Killed with `task kill` |
 | `cancelled` | Cancelled before it started |
 | `lost` | The job disappeared from its server without recording an exit code (e.g. the server rebooted), or it was started by an older version of the spooler. Not retried automatically. |
@@ -229,7 +229,7 @@ task submit -g 0 -H local -- 'python3 make_plots.py && echo done'
 | unknown task ID | 1 |
 | Ctrl+C while waiting | 130 (the task keeps running) |
 
-`queued` and `running` keep waiting, and that includes a task re-queued for an automatic retry. A task that has already finished returns at once. With several IDs, `wait` waits for all of them. It exits 0 only if every one is `done`; otherwise it returns the first non-zero code in ID order.
+`queued` and `running` keep waiting, and that includes a task re-queued after a failed launch. A task that has already finished returns at once. With several IDs, `wait` waits for all of them. It exits 0 only if every one is `done`; otherwise it returns the first non-zero code in ID order.
 
 ---
 
@@ -470,7 +470,7 @@ If [taura](https://github.com/woodRock/taura) is installed and the repo keeps a 
 | When | What the daemon records |
 |------|-------------------------|
 | the task starts | the command, the commit the server actually checked out (a `task sync` of a dirty tree is recorded as dirty, with the commit it was made on), `--config`/`--seed` from the command, host, GPUs, start time |
-| the task ends | exit code and finish time (each retry is its own run: `<date>-spooler-<id>-2`, ...) |
+| the task ends | exit code and finish time (a task re-queued after a failed launch records each attempt as its own run: `<date>-spooler-<id>-2`, ...) |
 | `task fetch PATHS --after ID` | the files that came back new or changed, with content hashes |
 
 With several IDs (`--after 85 86`), each file is recorded on the task that wrote it: the task whose command names the file or a directory above it most specifically (`--out results/a` claims `results/a/summary.csv`), and otherwise the task that was running when it was written. A file that neither tells apart (same command, same time) is recorded on each task with a warning; fetch those tasks' outputs one at a time to keep them apart.

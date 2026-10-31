@@ -17,7 +17,22 @@
         "width": 1100,
         "height": 700,
         "minWidth": 720,
-        "minHeight": 420
+        "minHeight": 420,
+        "visible": false
+      },
+      {
+        "label": "popover",
+        "title": "gpu-spooler",
+        "url": "index.html",
+        "width": 340,
+        "height": 460,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": true,
+        "focus": true
       }
     ],
     "security": {
@@ -26,7 +41,16 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }
