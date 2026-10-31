@@ -9,14 +9,150 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  The latest queue state, or None before the first read (a `QueueState` event follows). */
 	queueState: () => __TAURI_INVOKE<QueueState_Serialize | null>("queue_state"),
+	/**  The latest GPU state, or None before the first read (a `GpuState` event follows). */
+	gpuState: () => __TAURI_INVOKE<GpuState_Serialize | null>("gpu_state"),
+	/**  (label, value) rows, as `task info` shows them. */
+	taskDetails: (id: number) => typedError<([string, string])[], string>(__TAURI_INVOKE("task_details", { id })),
+	/**  The end of a task's log. */
+	logTail: (id: number) => typedError<LogChunk, string>(__TAURI_INVOKE("log_tail", { id })),
+	/**  What a task's log gained since `offset`. */
+	logSince: (id: number, offset: number) => typedError<LogChunk, string>(__TAURI_INVOKE("log_since", { id, offset })),
+	/**  Ask the daemon to keep the snapshot fresh for the next couple of minutes. */
+	requestGpuSnapshot: () => typedError<null, string>(__TAURI_INVOKE("request_gpu_snapshot")),
+	/**
+	 *  Open Terminal on `task connect`, to log in to the jump hosts (a password or OTP prompt needs a
+	 *  terminal). Its login shell finds `task` on the user's PATH.
+	 */
+	openTaskConnect: () => typedError<null, string>(__TAURI_INVOKE("open_task_connect")),
 };
 
 /** Events */
 export const events = {
+	gpuState: makeEvent<GpuState_Serialize, GpuState_Deserialize>("gpu-state"),
 	queueState: makeEvent<QueueState_Serialize, QueueState_Deserialize>("queue-state"),
 };
 
 /* Types */
+export type GpuCell = GpuCell_Serialize | GpuCell_Deserialize;
+
+export type GpuCell_Deserialize = {
+	index: number,
+	name: string,
+	mem_used_mb: number,
+	mem_total_mb: number,
+	/**  -1 if unknown */
+	utilization_pct: number,
+	/**  free | ours | used */
+	state: string,
+	/**  Ours: the task on it. */
+	task_id?: number | null,
+	processes: GpuProcess[],
+	/**  Held but idle for this long, from gpu-detective ([detective] in hosts.toml). */
+	idle_seconds?: number | null,
+};
+
+export type GpuCell_Serialize = {
+	index: number,
+	name: string,
+	mem_used_mb: number,
+	mem_total_mb: number,
+	/**  -1 if unknown */
+	utilization_pct: number,
+	/**  free | ours | used */
+	state: string,
+	/**  Ours: the task on it. */
+	task_id: number | null,
+	processes: GpuProcess[],
+	/**  Held but idle for this long, from gpu-detective ([detective] in hosts.toml). */
+	idle_seconds: number | null,
+};
+
+export type GpuProcess = {
+	pid: number,
+	user: string,
+	mem_used_mb: number,
+	/**  truncated command/script name */
+	command: string,
+};
+
+export type GpuState = GpuState_Serialize | GpuState_Deserialize;
+
+export type GpuState_Deserialize = {
+	/**  When the daemon took the snapshot; None: there is none yet. */
+	ts?: number | null,
+	/**  The network mode it was taken in (direct | jump). */
+	mode?: string | null,
+	/**  Configured hosts in config order, then hosts only the snapshot knows, by name. */
+	hosts: HostView_Deserialize[],
+};
+
+export type GpuState_Serialize = {
+	/**  When the daemon took the snapshot; None: there is none yet. */
+	ts: number | null,
+	/**  The network mode it was taken in (direct | jump). */
+	mode: string | null,
+	/**  Configured hosts in config order, then hosts only the snapshot knows, by name. */
+	hosts: HostView_Serialize[],
+};
+
+export type HostView = HostView_Serialize | HostView_Deserialize;
+
+export type HostView_Deserialize = {
+	name: string,
+	group?: string | null,
+	/**  worker | jump */
+	role: string,
+	/**  local | direct | the jump chain's name */
+	route: string,
+	enabled: boolean,
+	/**  In hosts.toml; false: only in the snapshot. */
+	configured: boolean,
+	cpu_slots: number,
+	remote_root?: string | null,
+	/**  As configured (display only; the snapshot's GPU names win). */
+	gpu_type?: string | null,
+	/**  None: not in the snapshot. */
+	reachable?: boolean | null,
+	error: string,
+	gpus: GpuCell_Deserialize[],
+};
+
+export type HostView_Serialize = {
+	name: string,
+	group: string | null,
+	/**  worker | jump */
+	role: string,
+	/**  local | direct | the jump chain's name */
+	route: string,
+	enabled: boolean,
+	/**  In hosts.toml; false: only in the snapshot. */
+	configured: boolean,
+	cpu_slots: number,
+	remote_root: string | null,
+	/**  As configured (display only; the snapshot's GPU names win). */
+	gpu_type: string | null,
+	/**  None: not in the snapshot. */
+	reachable: boolean | null,
+	error: string,
+	gpus: GpuCell_Serialize[],
+};
+
+export type LogChunk = {
+	text: string,
+	/**  Where the next `log_since` continues from. */
+	offset: number,
+	/**  The text starts partway through the log (it is longer than TAIL_BYTES). */
+	truncated: boolean,
+	/**
+	 *  The text replaces what the window has (the log was cleared or rewritten), rather than
+	 *  following it.
+	 */
+	reset: boolean,
+	/**  No log yet: the task hasn't started, or `task clear` removed it. */
+	missing: boolean,
+	path: string,
+};
+
 /**  Everything the queue view needs. */
 export type QueueState = QueueState_Serialize | QueueState_Deserialize;
 
@@ -114,6 +250,15 @@ export type Task_Serialize = {
 };
 
 /* Tauri Specta runtime */
+async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
+    try {
+        return { status: "ok", data: await result };
+    } catch (e) {
+        if (e instanceof Error) throw e;
+        return { status: "error", error: e as any };
+    }
+}
+
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;
 
 type EventEmitTo<T> = [T] extends [null] ? (target: __TAURI_EVENT.EventTarget | string) => Promise<void> : (target: __TAURI_EVENT.EventTarget | string, payload: T) => Promise<void>;

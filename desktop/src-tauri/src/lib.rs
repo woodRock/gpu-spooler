@@ -1,25 +1,44 @@
 //! gpu-spooler's desktop app. It reads the same database and state files as `task` and
 //! `task tui`, through the gpu-spooler library, and never runs a daemon of its own.
 
+mod gpus;
+mod logs;
 mod queue;
+mod state;
 mod watch;
 
 use gpu_spooler::paths::Paths;
+use gpus::GpuState;
 use queue::QueueState;
 
 /// The latest queue state, or None before the first read (a `QueueState` event follows).
 #[tauri::command]
 #[specta::specta]
 fn queue_state(latest: tauri::State<'_, watch::Latest>) -> Option<QueueState> {
-    latest.0.lock().unwrap().clone()
+    latest.queue.lock().unwrap().clone()
+}
+
+/// The latest GPU state, or None before the first read (a `GpuState` event follows).
+#[tauri::command]
+#[specta::specta]
+fn gpu_state(latest: tauri::State<'_, watch::Latest>) -> Option<GpuState> {
+    latest.gpus.lock().unwrap().clone()
 }
 
 /// The commands and events the frontend sees; `npm run bindings` writes their TypeScript types.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .commands(tauri_specta::collect_commands![queue_state])
-        .events(tauri_specta::collect_events![QueueState])
-        // i64 fields become `number`: IDs, PIDs, MB and seconds are far below 2^53.
+        .commands(tauri_specta::collect_commands![
+            queue_state,
+            gpu_state,
+            logs::task_details,
+            logs::log_tail,
+            logs::log_since,
+            gpus::request_gpu_snapshot,
+            gpus::open_task_connect,
+        ])
+        .events(tauri_specta::collect_events![QueueState, GpuState])
+        // i64 fields become `number`: IDs, PIDs, MB, bytes and seconds are far below 2^53.
         .dangerously_cast_bigints_to_number()
 }
 
@@ -27,10 +46,11 @@ pub fn run() {
     let builder = specta_builder();
     tauri::Builder::default()
         .invoke_handler(builder.invoke_handler())
+        .manage(state::AppState::new(Paths::from_env()))
         .manage(watch::Latest::default())
         .setup(move |app| {
             builder.mount_events(app);
-            watch::spawn(app.handle().clone(), Paths::from_env());
+            watch::spawn(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())
