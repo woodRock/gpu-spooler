@@ -1,6 +1,7 @@
 //! gpu-spooler's desktop app. It reads the same database and state files as `task` and
 //! `task tui`, through the gpu-spooler library, and never runs a daemon of its own.
 
+mod actions;
 mod gpus;
 mod logs;
 mod queue;
@@ -36,6 +37,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             logs::log_since,
             gpus::request_gpu_snapshot,
             gpus::open_task_connect,
+            actions::kill_task,
+            actions::resubmit_task,
+            actions::submit_task,
+            actions::clear_finished,
+            actions::start_daemon,
         ])
         .events(tauri_specta::collect_events![QueueState, GpuState])
         // i64 fields become `number`: IDs, PIDs, MB, bytes and seconds are far below 2^53.
@@ -45,6 +51,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 pub fn run() {
     let builder = specta_builder();
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .manage(state::AppState::new(Paths::from_env()))
         .manage(watch::Latest::default())

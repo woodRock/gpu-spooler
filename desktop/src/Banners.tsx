@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useActions } from "./actions";
 import { commands } from "./bindings";
 import { fmtDuration } from "./format";
 import type { GpuState } from "./types";
@@ -7,10 +8,14 @@ import type { GpuState } from "./types";
 export const STALE_SECONDS = 120;
 
 export function DaemonBanner({ pid, what }: { pid: number | null; what: string }) {
+  const actions = useActions();
   if (pid != null) return null;
   return (
-    <div className="banner warn">
-      The daemon is not running, so {what}. Start it with <code>task daemon start</code>.
+    <div className="banner warn with-action">
+      <span>The daemon is not running, so {what}.</span>
+      <button className="action" disabled={actions.busy} onClick={actions.startDaemon}>
+        Start daemon
+      </button>
     </div>
   );
 }

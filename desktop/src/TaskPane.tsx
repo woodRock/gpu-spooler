@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useActions } from "./actions";
 import { lineText, parseAnsi, type Line } from "./ansi";
 import { commands } from "./bindings";
 import { ACTIVE } from "./format";
@@ -11,14 +12,33 @@ const MAX_CHARS = 2_000_000;
 /** The daemon copies new output every 5 s; asking more often than that only shortens the wait. */
 const FOLLOW_MS = 1000;
 
-export function TaskPane({ task, onClose }: { task: Task; onClose: () => void }) {
+export function TaskPane({
+  task,
+  onClose,
+  onQueued,
+}: {
+  task: Task;
+  onClose: () => void;
+  /** A copy was queued: its id. */
+  onQueued: (id: number) => void;
+}) {
   const [tab, setTab] = useState<Tab>("log");
+  const actions = useActions();
+  const active = ACTIVE.includes(task.status);
   return (
     <section className="pane">
       <header className="pane-head">
         <div className="pane-title">
           <span className="muted">#{task.id}</span> {task.name || task.command}
         </div>
+        {active && (
+          <button className="btn small danger-text" disabled={actions.busy} onClick={() => actions.kill(task)} title="k">
+            {task.status === "queued" ? "Cancel" : "Kill"}
+          </button>
+        )}
+        <button className="btn small" disabled={actions.busy} onClick={() => actions.resubmit(task, onQueued)} title="r">
+          Resubmit
+        </button>
         <div className="segmented small" role="tablist">
           {(["log", "info"] as Tab[]).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
@@ -138,7 +158,12 @@ function LogView({ task }: { task: Task }) {
   let note: string | null = null;
   if (error) note = error;
   else if (chunk?.missing)
-    note = task.status === "queued" ? "No output yet: the task is waiting for a GPU." : "No log for this task.";
+    note =
+      task.status === "queued"
+        ? `No output yet: the task is waiting for ${task.num_gpus === 0 ? "a CPU slot" : "a GPU"}.`
+        : task.started_at
+          ? "No log for this task: it was removed."
+          : "It never started, so it has no log.";
   else if (chunk && text === "") note = active ? "No output yet." : "The task wrote no output.";
 
   return (

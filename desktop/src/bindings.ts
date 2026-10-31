@@ -24,6 +24,16 @@ export const commands = {
 	 *  terminal). Its login shell finds `task` on the user's PATH.
 	 */
 	openTaskConnect: () => typedError<null, string>(__TAURI_INVOKE("open_task_connect")),
+	/**  Cancel a queued task or kill a running one. */
+	killTask: (id: number) => typedError<KillResult, string>(__TAURI_INVOKE("kill_task", { id })),
+	/**  Queue a copy of a task (same command, resources and directory). */
+	resubmitTask: (id: number) => typedError<Submitted_Serialize, string>(__TAURI_INVOKE("resubmit_task", { id })),
+	/**  Queue a new task. The repo check (one ssh call per remote copy) runs as `task submit`'s does. */
+	submitTask: (opts: SubmitOpts_Deserialize) => typedError<Submitted_Serialize, string>(__TAURI_INVOKE("submit_task", { opts })),
+	/**  Remove finished tasks, their logs and their job directories on the servers. */
+	clearFinished: () => typedError<Cleared, string>(__TAURI_INVOKE("clear_finished")),
+	/**  Start the daemon with the installed `task`: its PID, or None if it was already running. */
+	startDaemon: () => typedError<number | null, string>(__TAURI_INVOKE("start_daemon")),
 };
 
 /** Events */
@@ -33,6 +43,12 @@ export const events = {
 };
 
 /* Types */
+export type Cleared = {
+	tasks: number,
+	log_files: number,
+	failed_hosts: string[],
+};
+
 export type GpuCell = GpuCell_Serialize | GpuCell_Deserialize;
 
 export type GpuCell_Deserialize = {
@@ -137,6 +153,15 @@ export type HostView_Serialize = {
 	gpus: GpuCell_Serialize[],
 };
 
+export type KillResult = {
+	task_id: number,
+	/**  cancelled | killed | none */
+	action: string,
+	/**  false: the host could not be reached */
+	confirmed: boolean,
+	message: string,
+};
+
 export type LogChunk = {
 	text: string,
 	/**  Where the next `log_since` continues from. */
@@ -180,6 +205,80 @@ export type QueueState_Serialize = {
 	max_gpus: number | null,
 	/**  Why the read failed (the previous tasks are kept); None when it worked. */
 	error: string | null,
+};
+
+/**
+ *  What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
+ *  `num_gpus` must not become a CPU job); everything else defaults.
+ */
+export type SubmitOpts = SubmitOpts_Serialize | SubmitOpts_Deserialize;
+
+/**
+ *  What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
+ *  `num_gpus` must not become a CPU job); everything else defaults.
+ */
+export type SubmitOpts_Deserialize = {
+	command: string,
+	num_gpus: number,
+	min_mem?: number,
+	name?: string | null,
+	host_spec?: string | null,
+	working_dir?: string | null,
+	gpu_type?: string | null,
+	no_record?: boolean,
+	/**  Start the daemon (unless it runs). */
+	start?: boolean,
+	/**  Check the servers' copy of the repo (one ssh call per copy). */
+	check_repo?: boolean,
+};
+
+/**
+ *  What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
+ *  `num_gpus` must not become a CPU job); everything else defaults.
+ */
+export type SubmitOpts_Serialize = {
+	command: string,
+	num_gpus: number,
+	min_mem: number,
+	name: string | null,
+	host_spec: string | null,
+	working_dir: string | null,
+	gpu_type: string | null,
+	no_record: boolean,
+	/**  Start the daemon (unless it runs). */
+	start: boolean,
+	/**  Check the servers' copy of the repo (one ssh call per copy). */
+	check_repo: boolean,
+};
+
+export type Submitted = Submitted_Serialize | Submitted_Deserialize;
+
+export type Submitted_Deserialize = {
+	task_id: number,
+	command: string,
+	working_dir: string,
+	num_gpus: number,
+	min_mem: number,
+	name?: string | null,
+	host_spec?: string | null,
+	/**  The hosts the task may run on. */
+	candidates: string[],
+	warnings: string[],
+	gpu_type?: string | null,
+};
+
+export type Submitted_Serialize = {
+	task_id: number,
+	command: string,
+	working_dir: string,
+	num_gpus: number,
+	min_mem: number,
+	name: string | null,
+	host_spec: string | null,
+	/**  The hosts the task may run on. */
+	candidates: string[],
+	warnings: string[],
+	gpu_type: string | null,
 };
 
 /**  One row of `tasks`. */
