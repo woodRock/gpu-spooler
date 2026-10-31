@@ -51,6 +51,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
 /// One row of `tasks`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Task {
     pub id: i64,
     pub command: String,

@@ -37,6 +37,7 @@ pub fn gpu_type_matches(spec: Option<&str>, name: &str) -> bool {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct GpuProcess {
     pub pid: i64,
     pub user: String,
@@ -46,6 +47,7 @@ pub struct GpuProcess {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct GpuInfo {
     pub index: i64,
     pub name: String,
@@ -72,6 +74,7 @@ impl GpuInfo {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ServerResult {
     pub name: String,
     pub reachable: bool,
