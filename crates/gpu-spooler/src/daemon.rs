@@ -3,10 +3,11 @@
 //!
 //! All job state lives in the database and the job directories, so a restarted daemon re-adopts
 //! jobs that are still running, whichever version (Rust or Python) started them. Log messages
-//! are the Python daemon's word for word.
+//! are the Python daemon's word for word, except that a task whose command exits non-zero now
+//! fails at once instead of being re-run (only launches that never started are retried).
 
 use crate::config::{load_config, Config, Host};
-use crate::core::{MAX_RETRIES, REQUEUE};
+use crate::core::{MAX_LAUNCH_RETRIES, REQUEUE};
 use crate::db::{self, Task};
 use crate::gpu::{gpu_type_matches, query_hosts, write_snapshot, ServerResult};
 use crate::jobs::{self, JobStatus};
@@ -540,20 +541,14 @@ impl Daemon {
             }
             return Ok(());
         }
-        if row.retry_count < MAX_RETRIES {
-            if self.update_running(tid, &key, &format!("{REQUEUE}, exit_code=?"), vec![Sql::Integer(rc)])? {
-                log(&format!(
-                    "Task {tid} failed (exit {rc}), re-queuing (attempt {}/{MAX_RETRIES}).",
-                    row.retry_count + 1
-                ));
-            }
-        } else if self.update_running(
+        // The command ran: each task runs once, and `task resubmit` runs it again on purpose.
+        if self.update_running(
             tid,
             &key,
             "status='failed', exit_code=?, finished_at=?",
             vec![Sql::Integer(rc), Sql::Real(now())],
         )? {
-            log(&format!("Task {tid} failed (exit {rc}), no more retries ({MAX_RETRIES}/{MAX_RETRIES})."));
+            log(&format!("Task {tid} failed (exit {rc}); not re-run (`task resubmit {tid}` runs it again)."));
         }
         Ok(())
     }
@@ -702,10 +697,10 @@ impl Daemon {
         if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&log_path) {
             let _ = writeln!(f, "gpu-spooler: launch on {} failed: {detail}", host.name);
         }
-        if row.retry_count < MAX_RETRIES {
+        if row.retry_count < MAX_LAUNCH_RETRIES {
             self.update_running(task_id, &key, REQUEUE, vec![])?;
             log(&format!(
-                "Task {task_id} failed to launch on {}: {reason}{} — re-queuing (attempt {}/{MAX_RETRIES}).",
+                "Task {task_id} failed to launch on {}: {reason}{} — re-queuing (attempt {}/{MAX_LAUNCH_RETRIES}).",
                 host.name,
                 hint.map_or(String::new(), |h| format!(" ({h})")),
                 row.retry_count + 1
@@ -713,7 +708,7 @@ impl Daemon {
         } else {
             self.update_running(task_id, &key, "status='failed', finished_at=?", vec![Sql::Real(now())])?;
             log(&format!(
-                "Task {task_id} failed to launch on {}: {reason} — no more retries ({MAX_RETRIES}/{MAX_RETRIES}).",
+                "Task {task_id} failed to launch on {}: {reason} — no more retries ({MAX_LAUNCH_RETRIES}/{MAX_LAUNCH_RETRIES}).",
                 host.name
             ));
         }

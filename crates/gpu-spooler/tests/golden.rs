@@ -313,7 +313,16 @@ fn task_details_match_python() {
                     })
                     .collect()
             };
-        assert_eq!(tz_free(got), tz_free(c.output.as_array().unwrap().clone()), "task_details {}", c.name);
+        // Renamed since the Python version: only failed launches are retried now, so the row
+        // counts those (core::MAX_LAUNCH_RETRIES).
+        let expected: Vec<Value> = c
+            .output
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| if r[0] == "Retries" { json!(["Launch retries", r[1]]) } else { r.clone() })
+            .collect();
+        assert_eq!(tz_free(got), tz_free(expected), "task_details {}", c.name);
     }
 }
 
