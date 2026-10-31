@@ -21,7 +21,7 @@ fn transport(paths: &Paths) -> Result<Transport, String> {
     Ok(Transport::new(cfg, paths.clone()))
 }
 
-/// Whether `exe` is gpu-spooler's `task` (`task 0.2.0`), not another program of that name
+/// Whether `exe` is gpu-spooler's `task` (`task 0.3.0`), not another program of that name
 /// (Taskwarrior prints a bare version).
 fn is_spooler(exe: &Path) -> bool {
     std::process::Command::new(exe)
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn tells_gpu_spoolers_task_from_taskwarrior() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(is_spooler(&script(dir.path(), "echo 'task 0.2.0'")));
+        assert!(is_spooler(&script(dir.path(), "echo 'task 0.3.0'")));
         assert!(!is_spooler(&script(dir.path(), "echo '3.4.1'")));
         assert!(!is_spooler(&dir.path().join("missing")));
     }
