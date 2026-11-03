@@ -20,6 +20,8 @@ pub const POPOVER: &str = "popover";
 const TRAY: &str = "tray";
 /// Passed by the login item: start in the menu bar only.
 pub const HIDDEN_ARG: &str = "--hidden";
+/// Longer than macOS's animation out of full screen.
+const FULLSCREEN_EXIT: Duration = Duration::from_millis(900);
 
 /// When the popover last hid itself on losing focus. A click on the menu bar icon takes the focus
 /// first, so the click that follows must not show it again at once.
@@ -115,7 +117,19 @@ pub fn on_window_event(w: &tauri::Window, e: &tauri::WindowEvent) {
         }
         (MAIN, tauri::WindowEvent::CloseRequested { api, .. }) => {
             api.prevent_close();
-            let _ = w.hide();
+            // Hiding a full-screen window leaves its Space behind, empty and black. Leave full
+            // screen first and hide once the animation is over: macOS gives no way to ask whether
+            // it is, and the state tao reports changes as the animation starts.
+            if w.is_fullscreen().unwrap_or(false) {
+                let _ = w.set_fullscreen(false);
+                let w = w.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(FULLSCREEN_EXIT);
+                    let _ = w.hide();
+                });
+            } else {
+                let _ = w.hide();
+            }
         }
         _ => {}
     }
