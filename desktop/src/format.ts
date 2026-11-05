@@ -21,6 +21,16 @@ export function fmtTs(ts: number | null | undefined): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** The status to show: a running SGE task says if the grid is holding it back (jobs.rs sge_note). */
+export function shownStatus(t: Task): string {
+  const s = t.status === "running" ? t.sge_state : null;
+  if (!s) return t.status;
+  if (s.includes("E")) return "error";
+  if (/[sST]/.test(s)) return "suspended";
+  if (s.includes("h")) return "held";
+  return s.includes("q") ? "waiting" : t.status;
+}
+
 /** How long a task ran (so far, if running); null if it never started. */
 export function runtime(t: Task, now: number): number | null {
   if (!t.started_at) return null;

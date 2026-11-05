@@ -338,6 +338,8 @@ export type Task_Deserialize = {
 	git_dirty?: number | null,
 	git_dirty_paths?: string | null,
 	no_record?: number,
+	sge_job_id?: number | null,
+	sge_state?: string | null,
 };
 
 /**  One row of `tasks`. */
@@ -370,6 +372,8 @@ export type Task_Serialize = {
 	git_dirty: number | null,
 	git_dirty_paths: string | null,
 	no_record: number,
+	sge_job_id: number | null,
+	sge_state: string | null,
 };
 
 /* Tauri Specta runtime */

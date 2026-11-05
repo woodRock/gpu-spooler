@@ -5,6 +5,7 @@
 #   barretts  127.0.0.1:2202   jump hop 2
 #   cuda01    127.0.0.1:2211   2 x RTX A5000 (mock nvidia-smi)
 #   cuda02    127.0.0.1:2212   4 x A40       (mock nvidia-smi)
+#   grid      127.0.0.1:2213   SGE submit host (mock qsub, qstat, qdel)
 #
 # Every host is an unprivileged sshd running as you. They share one home
 # directory ($D/home), like ECS's NFS homes. `up` writes $D/hosts.toml with
@@ -21,14 +22,14 @@
 set -euo pipefail
 
 D="${TS_FAKE_CLUSTER:-/tmp/ts-fake-cluster}"
-HOSTS="entry barretts cuda01 cuda02"
+HOSTS="entry barretts cuda01 cuda02 grid"
 SSHD="${SSHD:-$(command -v sshd || echo /usr/sbin/sshd)}"
 ME="$(id -un)"
 
 port_of() {
   case "$1" in
     entry) echo 2201 ;; barretts) echo 2202 ;;
-    cuda01) echo 2211 ;; cuda02) echo 2212 ;;
+    cuda01) echo 2211 ;; cuda02) echo 2212 ;; grid) echo 2213 ;;
     *) echo "unknown host: $1" >&2; exit 2 ;;
   esac
 }
@@ -73,6 +74,94 @@ else:
         print(f"GPU {i}: {name} ({'busy' if i in busy else 'idle'}, {total} MiB)")
 PY
   chmod +x "$D/bin/nvidia-smi"
+}
+
+write_mock_sge() {
+  # Like the real thing, the commands are only on PATH after sourcing settings.sh.
+  # barretts has an nvidia-smi that fails.
+  mkdir -p "$D/sge/bin" "$D/sge/jobs" "$D/sge/nvidia"
+  printf '#!/bin/sh\nexit 1\n' > "$D/sge/nvidia/nvidia-smi"
+  chmod +x "$D/sge/nvidia/nvidia-smi"
+  echo 'export PATH="$FAKE_CLUSTER/sge/bin:$PATH"' > "$D/sge/settings.sh"
+  cat > "$D/sge/bin/sge" <<'PY'
+#!/usr/bin/env python3
+# Mock qsub, qstat and qdel, chosen by the name they're called by. A job is a directory
+# $FAKE_CLUSTER/sge/jobs/<id>; it stays in state qw while $FAKE_CLUSTER/sge/hold exists, and
+# qstat fails while $FAKE_CLUSTER/sge/down exists. The job script runs as written, except that
+# /local/tmp is moved to somewhere an unprivileged user can write.
+import os, shutil, signal, subprocess, sys, time
+S = os.path.join(os.environ.get("FAKE_CLUSTER", "/tmp/ts-fake-cluster"), "sge")
+JOBS = f"{S}/jobs"
+
+def write(path, text):
+    with open(path, "w") as f:
+        f.write(text)
+
+def qsub(args):
+    opts = {}
+    while args[0].startswith("-"):
+        opts[args[0]] = args[1]
+        args = args[2:]
+    jid = str(1000 + len(os.listdir(JOBS)) + int(time.time() * 10) % 100000)
+    d = f"{JOBS}/{jid}"
+    os.mkdir(d)
+    write(f"{d}/state", "qw")
+    write(f"{d}/name", opts["-N"])
+    with open(args[0]) as f:
+        write(f"{d}/job.sh", f.read().replace("/local/tmp", f"{S}/local-tmp"))
+    p = subprocess.Popen([sys.argv[0], "run", jid, opts["-o"]], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    write(f"{d}/pid", str(p.pid))
+    print(f'Your job {jid} ("{opts["-N"]}") has been submitted')
+
+def run(jid, out):
+    d = f"{JOBS}/{jid}"
+    while os.path.exists(f"{S}/hold"):
+        time.sleep(0.2)
+    user = os.environ.get("USER") or os.environ.get("LOGNAME") or subprocess.check_output(["id", "-un"], text=True).strip()
+    os.makedirs(f"{S}/local-tmp/{user}/{jid}", exist_ok=True)
+    write(f"{d}/state", "r")
+    with open(out, "ab") as log:
+        subprocess.run(["/bin/sh", f"{d}/job.sh"], stdout=log, stderr=log, cwd=os.environ.get("HOME"),
+                       env=dict(os.environ, JOB_ID=jid))
+    shutil.rmtree(d, ignore_errors=True)
+
+def qstat(args):
+    if os.path.exists(f"{S}/down"):
+        print("error: commlib error: can't connect to service", file=sys.stderr)
+        sys.exit(1)
+    if args[:1] == ["-j"]:  # exits 0 even for a job that doesn't exist, like the real one
+        return
+    print("job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID")
+    print("-" * 113)
+    for jid in sorted(os.listdir(JOBS)):
+        try:
+            state = open(f"{JOBS}/{jid}/state").read()
+            name = open(f"{JOBS}/{jid}/name").read()[:10]
+        except OSError:
+            continue
+        print(f"{jid:>7} 0.55500 {name:<10} {args[-1]:<12} {state:<5} 11/05/2026 12:12:01 all.q@fake.ecs.vuw.ac.nz           1")
+
+def qdel(args):
+    d = f"{JOBS}/{args[0]}"
+    if not os.path.isdir(d):
+        print(f'denied: job "{args[0]}" does not exist', file=sys.stderr)
+        sys.exit(1)
+    try:
+        os.killpg(int(open(f"{d}/pid").read()), signal.SIGKILL)
+    except (OSError, ValueError):
+        pass
+    shutil.rmtree(d, ignore_errors=True)
+    print(f"{os.environ.get('USER', 'user')} has deleted job {args[0]}")
+
+name = os.path.basename(sys.argv[0])
+if sys.argv[1:2] == ["run"]:
+    run(*sys.argv[2:4])
+else:
+    {"qsub": qsub, "qstat": qstat, "qdel": qdel}[name](sys.argv[1:])
+PY
+  chmod +x "$D/sge/bin/sge"
+  for c in qsub qstat qdel; do ln -sf sge "$D/sge/bin/$c"; done
 }
 
 write_hosts_toml() {
@@ -120,6 +209,17 @@ port = 2211
 port = 2212
 gpu_type = "A40"
 
+[hosts.grid]
+kind = "sge"
+hostname = "127.0.0.1"
+port = 2213
+user = "$ME"
+jump = "fake"
+remote_root = "$D/repos"
+path_map = [ { local = "$D/local-src", remote = "$D/remote-src" } ]
+sge_settings = "$D/sge/settings.sh"
+sge_wd = "$D/home"
+
 [hosts.local]
 kind = "local"
 cpu_slots = 2
@@ -129,7 +229,7 @@ EOF
 start_host() {
   local h="$1" port; port="$(port_of "$h")"
   local extra_path=""
-  case "$h" in cuda*) extra_path="$D/bin:" ;; esac
+  case "$h" in cuda*) extra_path="$D/bin:" ;; grid) extra_path="$D/sge/nvidia:" ;; esac
   cat > "$D/sshd_$h.conf" <<EOF
 Port $port
 ListenAddress 127.0.0.1
@@ -182,6 +282,7 @@ cmd_up() {
   printf 'RTX A5000|24564\nRTX A5000|24564\n' > "$D/state/cuda01.gpus"
   printf 'NVIDIA A40|46068\nNVIDIA A40|46068\nNVIDIA A40|46068\nNVIDIA A40|46068\n' > "$D/state/cuda02.gpus"
   write_mock_nvidia_smi
+  write_mock_sge
   write_hosts_toml
   for h in $HOSTS; do stop_host "$h"; start_host "$h"; done
   sleep 0.5

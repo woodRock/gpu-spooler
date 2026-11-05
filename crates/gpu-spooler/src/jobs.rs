@@ -7,6 +7,7 @@
 //! code. The scripts are the Python version's byte for byte, so either daemon can adopt the
 //! other's jobs.
 
+use crate::config::Host;
 use crate::py;
 use crate::shell::{quote, sh_path};
 use base64::Engine;
@@ -33,15 +34,9 @@ pub fn new_job_key(task_id: i64) -> String {
     format!("{task_id}-{:02x}{:02x}{:02x}", bytes[0], bytes[1], bytes[2])
 }
 
-/// Script (for `bash -s`) that starts a job detached and prints `TS_PID <pid>`.
-///
-/// `probe`: when the task is recorded with taura, how to run taura's environment probe like the
-/// job's command (e.g. `PYTHONPATH=src python3`); the job then prints a `TAURA_ENV {...}` line first.
-pub fn launch_script(key: &str, wdir: &str, gpus: &str, command: &str, delay: bool, probe: Option<&str>) -> String {
-    let q_wdir = sh_path(wdir);
-    let tag = key.replace('-', "_");
-    let eof = format!("TS_EOF_{tag}");
-    let (probe_file, probe_run) = match probe {
+/// The lines that write taura's probe into the job directory, and the line that runs it.
+fn probe_steps(tag: &str, probe: Option<&str>) -> (String, String) {
+    match probe {
         Some(probe) => {
             let peof = format!("TS_PROBE_{tag}");
             (
@@ -50,9 +45,31 @@ pub fn launch_script(key: &str, wdir: &str, gpus: &str, command: &str, delay: bo
             )
         }
         None => (String::new(), String::new()),
-    };
+    }
+}
+
+/// Lines that print the commit the job will run: see [`parse_git`] and [`parse_dirty`].
+fn git_report(q_wdir: &str) -> String {
+    format!(
+        r#"# The commit the job will run, for run provenance (taura): HEAD and uncommitted changes.
+# git may only be on a login shell's PATH (on ECS it's in /usr/pkg/bin).
+{FIND_GIT}( cd {q_wdir} 2>/dev/null && h=$(git rev-parse -q --verify HEAD 2>/dev/null)   && echo "TS_GIT $h $(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')"   && git status --porcelain --untracked-files=no 2>/dev/null | head -50 | sed 's/^.../TS_DIRTY /' )
+"#
+    )
+}
+
+/// Script (for `bash -s`) that starts a job detached and prints `TS_PID <pid>`.
+///
+/// `probe`: when the task is recorded with taura, how to run taura's environment probe like the
+/// job's command (e.g. `PYTHONPATH=src python3`); the job then prints a `TAURA_ENV {...}` line first.
+pub fn launch_script(key: &str, wdir: &str, gpus: &str, command: &str, delay: bool, probe: Option<&str>) -> String {
+    let q_wdir = sh_path(wdir);
+    let tag = key.replace('-', "_");
+    let eof = format!("TS_EOF_{tag}");
+    let (probe_file, probe_run) = probe_steps(&tag, probe);
     let gpus = quote(gpus);
     let pause = if delay { "sleep 2" } else { ":" };
+    let git = git_report(&q_wdir);
     format!(
         r#"D="{JOBS_DIR}/{key}"
 mkdir -p "$D" || exit 1
@@ -77,10 +94,7 @@ ts_detach() {{
   else exec python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"; fi
 }}
 cd "$HOME"
-# The commit the job will run, for run provenance (taura): HEAD and uncommitted changes.
-# git may only be on a login shell's PATH (on ECS it's in /usr/pkg/bin).
-{FIND_GIT}( cd {q_wdir} 2>/dev/null && h=$(git rev-parse -q --verify HEAD 2>/dev/null)   && echo "TS_GIT $h $(git status --porcelain --untracked-files=no 2>/dev/null | wc -l | tr -d ' ')"   && git status --porcelain --untracked-files=no 2>/dev/null | head -50 | sed 's/^.../TS_DIRTY /' )
-ts_detach bash -l "$D/run.sh" > "$D/out.log" 2>&1 < /dev/null &
+{git}ts_detach bash -l "$D/run.sh" > "$D/out.log" 2>&1 < /dev/null &
 echo $! > "$D/pid"
 echo "TS_PID $!"
 "#
@@ -137,13 +151,19 @@ echo '@@END'
     )
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct JobStatus {
     /// running | done | missing | gone
     pub state: String,
     pub rc: Option<i64>,
     pub size: i64,
     pub data: Vec<u8>,
+    /// SGE jobs: the job's ID and its state in qstat, while qstat lists it
+    pub sge: Option<(i64, String)>,
+    /// SGE jobs: when the job began running on a grid machine
+    pub started: Option<f64>,
+    /// SGE jobs: when the command ended, which the next poll may be well after
+    pub finished: Option<f64>,
 }
 
 /// Parse status_script output; None if it was cut short.
@@ -154,7 +174,18 @@ pub fn parse_status(stdout: &str) -> Option<IndexMap<String, JobStatus>> {
     for line in py::splitlines(stdout) {
         if let Some(key) = line.strip_prefix("@@JOB ") {
             let key = py::strip(key).to_string();
-            out.insert(key.clone(), JobStatus { state: "gone".into(), rc: None, size: 0, data: vec![] });
+            out.insert(
+                key.clone(),
+                JobStatus {
+                    state: "gone".into(),
+                    rc: None,
+                    size: 0,
+                    data: vec![],
+                    sge: None,
+                    started: None,
+                    finished: None,
+                },
+            );
             cur = Some(key);
         } else if line == "@@END" {
             complete = true;
@@ -170,6 +201,15 @@ pub fn parse_status(stdout: &str) -> Option<IndexMap<String, JobStatus>> {
             } else if let Some(size) = line.strip_prefix("SIZE ") {
                 let size = py::strip(size);
                 st.size = if size.is_empty() { 0 } else { py::int(size).unwrap_or(0) };
+            } else if line.starts_with("SGE ") {
+                let parts = py::split(line);
+                if let (Some(id), Some(state)) = (parts.get(1).and_then(|p| py::int(p)), parts.get(2)) {
+                    st.sge = Some((id, state.to_string()));
+                }
+            } else if let Some(ts) = line.strip_prefix("STARTED ") {
+                st.started = py::strip(ts).parse().ok();
+            } else if let Some(ts) = line.strip_prefix("FINISHED ") {
+                st.finished = py::strip(ts).parse().ok();
             } else if line.starts_with("DATA") {
                 let data = py::strip(line.get(5..).unwrap_or(""));
                 st.data = base64::engine::general_purpose::STANDARD.decode(data).ok()?;
@@ -196,6 +236,157 @@ else
 fi
 "#
     )
+}
+
+// ── Sun Grid Engine ───────────────────────────────────────────────────────────
+
+/// The first 32 lines of the ECS Grid submission template. The tech note says to change nothing
+/// here but the username: https://ecs.wgtn.ac.nz/Support/TechNoteEcsGrid
+fn sge_template(user: &str, wd: &str) -> String {
+    format!(
+        r#"#!/bin/sh
+#
+# Force Bourne Shell if not Sun Grid Engine default shell (you never know!)
+#
+#$ -S /bin/sh
+#
+# I know I have a directory here so I'll use it as my initial working directory
+#
+#$ -wd {wd}
+#
+# End of the setup directives
+#
+# Now let's do something useful, but first change into the job-specific directory that should
+#  have been created for us
+#
+# Check we have somewhere to work now and if we don't, exit nicely.
+#
+if [ -d /local/tmp/{user}/$JOB_ID ]; then
+        cd /local/tmp/{user}/$JOB_ID
+else
+        echo "Uh oh ! There's no job directory to change into "
+        echo "Something is broken. I should inform the programmers"
+        echo "Save some information that may be of use to them"
+        echo "Here's LOCAL TMP "
+        ls -la /local/tmp
+        echo "AND LOCAL TMP {user} "
+        ls -la /local/tmp/{user}
+        echo "Exiting"
+        exit 1
+fi
+#
+# Now we are in the job-specific directory so now can do something useful
+"#
+    )
+}
+
+/// Script (for `bash -s` on a submit host) that hands a job to SGE and prints `TS_SGE_JOB <id>`.
+/// The job directory is on NFS, so the submit host can follow the job like any other. The command
+/// runs in `wdir`, with the machine's scratch directory (deleted after the job) in $TASK_SCRATCH.
+pub fn sge_submit_script(host: &Host, key: &str, wdir: &str, command: &str, probe: Option<&str>) -> String {
+    let q_wdir = sh_path(wdir);
+    let tag = key.replace('-', "_");
+    let eof = format!("TS_EOF_{tag}");
+    let job_eof = format!("TS_JOB_{tag}");
+    let (probe_file, probe_run) = probe_steps(&tag, probe);
+    let git = git_report(&q_wdir);
+    let user = host.user.as_deref().unwrap_or_default();
+    let template = sge_template(user, &host.sge_wd);
+    let (settings, queue) = (sh_path(&host.sge_settings), quote(&host.sge_queue));
+    format!(
+        r#". {settings} || exit 1
+D="{JOBS_DIR}/{key}"
+mkdir -p "$D" || exit 1
+{probe_file}cat > "$D/run.sh" <<'{eof}'
+D="{JOBS_DIR}/{key}"
+date +%s > "$D/started"
+source ~/.bashrc 2>/dev/null || true
+ls {q_wdir} > /dev/null 2>&1
+cd {q_wdir} || {{ echo "gpu-spooler: cannot cd to "{q_wdir} >&2; echo 1 > "$D/rc.tmp"; mv "$D/rc.tmp" "$D/rc"; exit 1; }}
+export TASK_SCRATCH="/local/tmp/{user}/$JOB_ID"
+{probe_run}( {command}
+)
+rc=$?
+date +%s > "$D/finished"
+echo "$rc" > "$D/rc.tmp" && mv "$D/rc.tmp" "$D/rc"
+exit $rc
+{eof}
+cat > "$D/job.sh" <<'{job_eof}'
+{template}bash -l "{JOBS_DIR}/{key}/run.sh"
+{job_eof}
+{git}O=$(qsub -N ts-{key} -q {queue} -j y -o "$D/out.log" "$D/job.sh") || exit 1
+J=$(printf '%s\n' "$O" | sed -n 's/^Your job \([0-9][0-9]*\).*/\1/p')
+[ -n "$J" ] || {{ echo "gpu-spooler: unexpected qsub output: $O" >&2; exit 1; }}
+echo "$J" > "$D/sgeid"
+echo "TS_SGE_JOB $J"
+"#
+    )
+}
+
+/// The SGE job ID the submit script printed.
+pub fn parse_sge_submit(stdout: &str) -> Option<i64> {
+    let line = py::splitlines(stdout).into_iter().find(|l| l.starts_with("TS_SGE_JOB "))?;
+    py::split(line).get(1).and_then(|p| py::int(p))
+}
+
+/// [`status_script`] for SGE jobs: a job is alive while qstat lists it. Fails if qstat does, as
+/// the state of the jobs is then unknown.
+pub fn sge_status_script(host: &Host, specs: &[(String, i64)]) -> String {
+    let items: Vec<String> = specs.iter().map(|(k, off)| quote(&format!("{k}:{off}"))).collect();
+    format!(
+        r#". {settings} || exit 1
+Q=$(qstat -u "$(id -un)") || exit 1
+for spec in {items}; do
+  k=${{spec%%:*}}; off=${{spec##*:}}; D="{JOBS_DIR}/$k"
+  printf '@@JOB %s\n' "$k"
+  J=$(cat "$D/sgeid" 2>/dev/null)
+  S=""
+  [ -z "$J" ] || S=$(printf '%s\n' "$Q" | awk -v j="$J" '$1 == j {{ print $5; exit }}')
+  if [ -f "$D/rc" ]; then printf 'STATE done %s\n' "$(cat "$D/rc")"
+  elif [ ! -d "$D" ]; then echo 'STATE missing'
+  elif [ -n "$S" ]; then echo 'STATE running'
+  else echo 'STATE gone'; fi
+  [ -z "$S" ] || printf 'SGE %s %s\n' "$J" "$S"
+  [ ! -f "$D/started" ] || printf 'STARTED %s\n' "$(cat "$D/started")"
+  [ ! -f "$D/finished" ] || printf 'FINISHED %s\n' "$(cat "$D/finished")"
+  printf 'SIZE %s\n' "$(wc -c < "$D/out.log" 2>/dev/null | tr -d ' ' || echo 0)"
+  printf 'DATA '; tail -c +$((off+1)) "$D/out.log" 2>/dev/null | head -c {CHUNK_BYTES} | base64 | tr -d '\n'; echo
+done
+echo '@@END'
+"#,
+        settings = sh_path(&host.sge_settings),
+        items = items.join(" ")
+    )
+}
+
+/// Delete the job from SGE. Prints KILLED, NOT_RUNNING or NO_JOB.
+pub fn sge_kill_script(host: &Host, key: &str) -> String {
+    format!(
+        r#". {settings} || exit 1
+J=$(cat "{JOBS_DIR}/{key}/sgeid" 2>/dev/null)
+[ -n "$J" ] || {{ echo NO_JOB; exit 0; }}
+Q=$(qstat -u "$(id -un)") || exit 1
+printf '%s\n' "$Q" | awk -v j="$J" '$1 == j {{ found = 1 }} END {{ exit !found }}' || {{ echo NOT_RUNNING; exit 0; }}
+qdel "$J" > /dev/null || exit 1
+echo KILLED
+"#,
+        settings = sh_path(&host.sge_settings)
+    )
+}
+
+/// What a qstat state means, where the task's status doesn't say: `r` needs no words.
+pub fn sge_note(state: &str) -> Option<&'static str> {
+    if state.contains('E') {
+        Some("error")
+    } else if state.contains(['s', 'S', 'T']) {
+        Some("suspended")
+    } else if state.contains('h') {
+        Some("held")
+    } else if state.contains('q') {
+        Some("waiting")
+    } else {
+        None
+    }
 }
 
 /// Remove job directories for every launch attempt of the given tasks.
@@ -262,5 +453,78 @@ mod tests {
         assert_eq!(st["1-abcdef"].data, &log.as_bytes()[4..]);
         bash(&cleanup_script(&[1]), home.path());
         assert!(!dir.exists());
+    }
+
+    fn sge_host(settings: &std::path::Path) -> Host {
+        let text = format!(
+            "[hosts.grid]\nkind = \"sge\"\nuser = \"fred\"\nsge_settings = {:?}\nsge_wd = \"/vol/fred\"\n",
+            settings.display()
+        );
+        let home = std::path::Path::new("/nowhere");
+        let data = toml::from_str(&text).unwrap();
+        crate::config::parse_config(&data, &crate::paths::Paths::for_home(home)).unwrap().hosts["grid"].clone()
+    }
+
+    #[test]
+    fn sge_script_keeps_the_tech_note_template() {
+        let host = sge_host(std::path::Path::new("/s.sh"));
+        let script = sge_submit_script(&host, "1-abcdef", "/w", "echo hi", None);
+        let job = script.split("<<'TS_JOB_1_abcdef'\n").nth(1).unwrap();
+        let lines: Vec<&str> = job.lines().collect();
+        assert_eq!(lines[0], "#!/bin/sh");
+        assert_eq!(lines[8], "#$ -wd /vol/fred");
+        assert_eq!(lines[17], "if [ -d /local/tmp/fred/$JOB_ID ]; then");
+        assert_eq!(lines[26], "        ls -la /local/tmp/fred");
+        assert_eq!(lines[31], "# Now we are in the job-specific directory so now can do something useful");
+    }
+
+    #[test]
+    fn sge_status_follows_qstat() {
+        let home = tempfile::tempdir().unwrap();
+        let settings = home.path().join("settings.sh");
+        let qstat = "job-ID prior name user state\n---\n 77 0.5 ts-1 fred qw\n 78 0.5 ts-2 fred Eqw\n";
+        std::fs::write(&settings, format!("qstat() {{ printf '%s' '{qstat}'; return ${{QS:-0}}; }}\n")).unwrap();
+        let host = sge_host(&settings);
+        let jobs = home.path().join(".gpu-spooler/jobs");
+        for (key, id) in [("1-aaaaaa", "77"), ("2-bbbbbb", "78"), ("3-cccccc", "79"), ("4-dddddd", "80")] {
+            std::fs::create_dir_all(jobs.join(key)).unwrap();
+            std::fs::write(jobs.join(key).join("sgeid"), format!("{id}\n")).unwrap();
+        }
+        std::fs::write(jobs.join("1-aaaaaa/out.log"), "hi\n").unwrap();
+        std::fs::write(jobs.join("1-aaaaaa/started"), "1700000000\n").unwrap();
+        std::fs::write(jobs.join("4-dddddd/rc"), "5\n").unwrap();
+        let specs: Vec<(String, i64)> =
+            ["1-aaaaaa", "2-bbbbbb", "3-cccccc", "4-dddddd", "5-eeeeee"].iter().map(|k| (k.to_string(), 0)).collect();
+        let st = parse_status(&bash(&sge_status_script(&host, &specs), home.path())).unwrap();
+        assert_eq!(st["1-aaaaaa"].state, "running");
+        assert_eq!(st["1-aaaaaa"].sge, Some((77, "qw".to_string())));
+        assert_eq!(st["1-aaaaaa"].started, Some(1700000000.0));
+        assert_eq!(st["1-aaaaaa"].data, b"hi\n");
+        assert_eq!(st["2-bbbbbb"].sge, Some((78, "Eqw".to_string())));
+        assert_eq!(st["3-cccccc"].state, "gone");
+        assert_eq!((st["4-dddddd"].state.as_str(), st["4-dddddd"].rc), ("done", Some(5)));
+        assert_eq!(st["5-eeeeee"].state, "missing");
+
+        // qstat failing says nothing about the jobs.
+        let broken = sge_status_script(&host, &specs).replacen(". ", "QS=1; . ", 1);
+        assert_eq!(parse_status(&bash(&broken, home.path())), None);
+    }
+
+    #[test]
+    fn sge_notes() {
+        let notes: Vec<_> = ["r", "qw", "hqw", "Eqw", "s", "S", "T", "dr"].iter().map(|s| sge_note(s)).collect();
+        assert_eq!(
+            notes,
+            [
+                None,
+                Some("waiting"),
+                Some("held"),
+                Some("error"),
+                Some("suspended"),
+                Some("suspended"),
+                Some("suspended"),
+                None
+            ]
+        );
     }
 }

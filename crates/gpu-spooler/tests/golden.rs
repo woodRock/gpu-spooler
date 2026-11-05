@@ -117,7 +117,7 @@ fn config_json(cfg: &Config) -> Value {
         .map(|h| {
             json!({
                 "name": h.name,
-                "kind": match h.kind { Kind::Ssh => "ssh", Kind::Local => "local" },
+                "kind": match h.kind { Kind::Ssh => "ssh", Kind::Local => "local", Kind::Sge => "sge" },
                 "hostname": h.hostname, "user": h.user, "port": h.port, "jump": h.jump,
                 "role": match h.role { Role::Worker => "worker", Role::Jump => "jump" },
                 "tags": h.tags, "group": h.group,

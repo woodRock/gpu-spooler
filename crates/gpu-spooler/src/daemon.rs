@@ -17,7 +17,7 @@ use crate::{provenance, py};
 use indexmap::IndexMap;
 use rusqlite::types::Value as Sql;
 use rusqlite::{params_from_iter, Connection};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -27,8 +27,15 @@ use std::time::Duration;
 pub const POLL_INTERVAL: f64 = 30.0;
 pub const LAUNCH_TIMEOUT: Duration = Duration::from_secs(60);
 pub const STATUS_TIMEOUT: Duration = Duration::from_secs(60);
+const SGE_REACH_TIMEOUT: Duration = Duration::from_secs(20);
 /// Keep refreshing the GPU snapshot this long after a request.
 pub const SNAPSHOT_WANTED: f64 = 120.0;
+
+/// SGE jobs are polled once every this many status polls: each one runs qstat on a shared machine.
+const SGE_POLL_EVERY: f64 = 3.0;
+/// Status polls an SGE job may be out of qstat with no exit code before it counts as lost: the
+/// exit code is on NFS, and the submit host may see it late.
+const SGE_GONE_POLLS: f64 = 18.0;
 
 /// Seconds between status / log-sync polls of running jobs (`GPU_SPOOLER_STATUS_INTERVAL`).
 pub fn status_interval() -> f64 {
@@ -199,6 +206,9 @@ pub struct Daemon {
     status_due: bool,
     mode: Option<Mode>,
     unknown_hosts: HashSet<String>,
+    last_sge_poll: f64,
+    /// job key → when the job left qstat with no exit code
+    sge_gone: HashMap<String, f64>,
     _lock: File,
 }
 
@@ -258,6 +268,8 @@ impl Daemon {
             status_due: true,
             mode: None,
             unknown_hosts: HashSet::new(),
+            last_sge_poll: 0.0,
+            sge_gone: HashMap::new(),
             _lock: lock,
         }))
     }
@@ -339,8 +351,8 @@ impl Daemon {
         }
 
         if self.snapshot_due() {
-            let workers = self.cfg().workers();
-            let results = query_hosts(&self.transport, &workers, 16, false);
+            let hosts = self.cfg().select(None).unwrap_or_default();
+            let results = query_hosts(&self.transport, &hosts, 16, false);
             self.write_snapshot(&results);
         }
         Ok(())
@@ -416,6 +428,7 @@ impl Daemon {
         if rows.is_empty() {
             return Ok(());
         }
+        let sge_due = now() - self.last_sge_poll >= SGE_POLL_EVERY * status_interval();
         let mut by_host: IndexMap<String, Vec<Task>> = IndexMap::new();
         for r in rows {
             let server = r.server.clone().unwrap_or_default();
@@ -429,7 +442,12 @@ impl Daemon {
                 }
                 continue;
             }
-            by_host.entry(server).or_default().push(r);
+            if sge_due || !self.cfg().hosts[&server].is_sge() {
+                by_host.entry(server).or_default().push(r);
+            }
+        }
+        if sge_due && by_host.keys().any(|h| self.cfg().hosts[h].is_sge()) {
+            self.last_sge_poll = now();
         }
 
         let hosts: Vec<&Host> = by_host.keys().map(|h| &self.cfg().hosts[h]).collect();
@@ -438,7 +456,9 @@ impl Daemon {
             |host| {
                 let specs: Vec<(String, i64)> =
                     by_host[&host.name].iter().map(|r| (r.job_key.clone().unwrap_or_default(), r.log_offset)).collect();
-                let out = self.transport.run(host, &jobs::status_script(&specs), STATUS_TIMEOUT);
+                let script =
+                    if host.is_sge() { jobs::sge_status_script(host, &specs) } else { jobs::status_script(&specs) };
+                let out = self.transport.run(host, &script, STATUS_TIMEOUT);
                 if out.rc == 0 {
                     jobs::parse_status(&out.stdout)
                 } else {
@@ -461,6 +481,23 @@ impl Daemon {
 
     fn apply_status(&mut self, row: &Task, st: &JobStatus, now: f64) -> Result<(), Error> {
         let (tid, key) = (row.id, row.job_key.clone().unwrap_or_default());
+        let started = st.started.filter(|_| row.started_at.is_none());
+        let row = &Task { started_at: row.started_at.or(started), ..row.clone() };
+        if let Some((id, state)) = &st.sge {
+            if row.sge_state.as_ref() != Some(state) {
+                log(&format!("Task {tid}: SGE job {id} is {state}."));
+            }
+            self.con.execute(
+                "UPDATE tasks SET sge_job_id=?, sge_state=? WHERE id=? AND job_key=?",
+                rusqlite::params![id, state, tid, key],
+            )?;
+        }
+        if started.is_some() {
+            self.con.execute(
+                "UPDATE tasks SET started_at=? WHERE id=? AND job_key=?",
+                rusqlite::params![started, tid, key],
+            )?;
+        }
         let mut offset = row.log_offset;
         if !st.data.is_empty() {
             let appended = match &row.log_file {
@@ -483,14 +520,23 @@ impl Daemon {
         )?;
 
         if st.state == "running" {
+            self.sge_gone.remove(&key);
             return Ok(());
         }
+        let sge = row.server.as_ref().and_then(|s| self.cfg().hosts.get(s)).is_some_and(Host::is_sge);
+        if sge && st.state == "gone" {
+            let since = *self.sge_gone.entry(key.clone()).or_insert(now);
+            if now - since < SGE_GONE_POLLS * status_interval() {
+                return Ok(());
+            }
+        }
+        self.sge_gone.remove(&key);
         if offset < st.size {
             self.status_due = true; // fetch the rest of the log right away
             return Ok(());
         }
         if st.state == "done" {
-            self.finish(row, st.rc.unwrap_or(1))?;
+            self.finish(row, st.rc.unwrap_or(1), st.finished.unwrap_or(now))?;
         } else {
             self.update_running(tid, &key, "status='lost', exit_code=NULL, finished_at=?", vec![Sql::Real(now)])?;
             log(&format!(
@@ -530,13 +576,13 @@ impl Daemon {
         }
     }
 
-    fn finish(&mut self, row: &Task, rc: i64) -> Result<(), Error> {
+    fn finish(&mut self, row: &Task, rc: i64, at: f64) -> Result<(), Error> {
         let (tid, key) = (row.id, row.job_key.clone().unwrap_or_default());
         // Record this attempt as it ended, before a retry re-queues it (and bumps its attempt number).
-        let ended = Task { exit_code: Some(rc), finished_at: Some(now()), ..row.clone() };
+        let ended = Task { exit_code: Some(rc), finished_at: Some(at), ..row.clone() };
         self.provenance("finish", tid, Some(&ended));
         if rc == 0 {
-            if self.update_running(tid, &key, "status='done', exit_code=0, finished_at=?", vec![Sql::Real(now())])? {
+            if self.update_running(tid, &key, "status='done', exit_code=0, finished_at=?", vec![Sql::Real(at)])? {
                 log(&format!("Task {tid} finished — exit 0 (done)."));
             }
             return Ok(());
@@ -546,7 +592,7 @@ impl Daemon {
             tid,
             &key,
             "status='failed', exit_code=?, finished_at=?",
-            vec![Sql::Integer(rc), Sql::Real(now())],
+            vec![Sql::Integer(rc), Sql::Real(at)],
         )? {
             log(&format!("Task {tid} failed (exit {rc}); not re-run (`task resubmit {tid}` runs it again)."));
         }
@@ -558,6 +604,7 @@ impl Daemon {
     /// Query hosts and start queued tasks on free GPUs / CPU slots.
     fn dispatch(&mut self) -> Result<(), Error> {
         let rows = self.tasks("SELECT * FROM tasks WHERE status='queued' ORDER BY id")?;
+        let rows = self.dispatch_sge(rows)?;
         if rows.is_empty() {
             return Ok(());
         }
@@ -624,6 +671,32 @@ impl Daemon {
         Ok(())
     }
 
+    /// Hand CPU tasks that name an SGE host to its grid, which does the placing; returns the rest.
+    /// A host that can't be reached keeps its tasks queued, like a GPU server with no free GPUs.
+    fn dispatch_sge(&mut self, rows: Vec<Task>) -> Result<Vec<Task>, Error> {
+        let mut rest = vec![];
+        let mut reachable: HashMap<String, bool> = HashMap::new();
+        for row in rows {
+            let hosts = self.cfg().select(row.host_spec.as_deref()).unwrap_or_default();
+            let host = hosts.into_iter().find(|h| h.is_sge() && row.num_gpus == 0).cloned();
+            let Some(host) = host else {
+                rest.push(row);
+                continue;
+            };
+            let up = *reachable.entry(host.name.clone()).or_insert_with(|| {
+                let up = self.transport.run(&host, "true\n", SGE_REACH_TIMEOUT).rc == 0;
+                if !up {
+                    log(&format!("SGE host {} is unreachable; its tasks remain queued.", host.name));
+                }
+                up
+            });
+            if up {
+                self.launch(row.id, &host, &[])?;
+            }
+        }
+        Ok(rest)
+    }
+
     fn launch(&mut self, task_id: i64, host: &Host, gpu_indices: &[i64]) -> Result<(), Error> {
         let Some(row) = db::find_task(&self.con, task_id)? else { return Ok(()) };
         let gpu_str = gpu_indices.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(",");
@@ -634,10 +707,22 @@ impl Daemon {
 
         // Reserve in DB before launching, so a daemon restart mid-launch can find (or give up on)
         // the job directory.
+        // An SGE task starts when the grid starts it (the status poll sees that), and waits until then.
+        let (started, sge_state) = if host.is_sge() { (None, Some("qw")) } else { (Some(now()), None) };
         let n = self.con.execute(
             "UPDATE tasks SET status='running', server=?, gpu_indices=?, started_at=?, log_file=?, job_key=?, \
-             remote_pid=NULL, log_offset=0, remote_dir=?, last_seen=NULL, finished_at=NULL WHERE id=? AND status='queued'",
-            rusqlite::params![host.name, gpu_str, now(), log_path.display().to_string(), key, rdir, task_id],
+             remote_pid=NULL, log_offset=0, remote_dir=?, last_seen=NULL, finished_at=NULL, sge_state=? \
+             WHERE id=? AND status='queued'",
+            rusqlite::params![
+                host.name,
+                gpu_str,
+                started,
+                log_path.display().to_string(),
+                key,
+                rdir,
+                sge_state,
+                task_id
+            ],
         )?;
         if n == 0 {
             return Ok(()); // cancelled in the meantime
@@ -646,10 +731,11 @@ impl Daemon {
         // A header for the log
         let mapped = if rdir != wdir { format!("  (mapped from {wdir})") } else { String::new() };
         let header = format!(
-            "# task {task_id}: {}\n# server: {}  CUDA_VISIBLE_DEVICES: {}\n# started: {}\n# working_dir: {rdir}{mapped}\n{}\n",
+            "# task {task_id}: {}\n# server: {}  CUDA_VISIBLE_DEVICES: {}\n# {}: {}\n# working_dir: {rdir}{mapped}\n{}\n",
             row.command,
             host.name,
             if gpu_str.is_empty() { "(none)" } else { &gpu_str },
+            if host.is_sge() { "submitted" } else { "started" },
             isoformat_now(),
             "─".repeat(60)
         );
@@ -658,15 +744,23 @@ impl Daemon {
         // Multi-GPU jobs sleep briefly before starting to reduce the chance of torchrun port
         // collisions when several launch at the same time.
         let probe = provenance::enabled(&row, &self.cfg().taura).then(|| provenance::probe_command(&row.command));
-        let script = jobs::launch_script(&key, &rdir, &gpu_str, &row.command, gpu_indices.len() > 1, probe.as_deref());
+        let script = if host.is_sge() {
+            jobs::sge_submit_script(host, &key, &rdir, &row.command, probe.as_deref())
+        } else {
+            jobs::launch_script(&key, &rdir, &gpu_str, &row.command, gpu_indices.len() > 1, probe.as_deref())
+        };
         let out = self.transport.run(host, &script, LAUNCH_TIMEOUT);
-        if let Some(pid) = jobs::parse_launch(&out.stdout) {
+        let pid = jobs::parse_launch(&out.stdout);
+        let sge_id = jobs::parse_sge_submit(&out.stdout);
+        if pid.is_some() || sge_id.is_some() {
             let git = jobs::parse_git(&out.stdout);
             let dirty = git.as_ref().map(|_| jobs::parse_dirty(&out.stdout).join("\n"));
             self.con.execute(
-                "UPDATE tasks SET remote_pid=?, git_commit=?, git_dirty=?, git_dirty_paths=? WHERE id=? AND job_key=?",
+                "UPDATE tasks SET remote_pid=?, sge_job_id=?, git_commit=?, git_dirty=?, git_dirty_paths=? \
+                 WHERE id=? AND job_key=?",
                 rusqlite::params![
                     pid,
+                    sge_id,
                     git.as_ref().map(|g| g.0.clone()),
                     git.as_ref().map(|g| g.1),
                     dirty,
@@ -674,10 +768,17 @@ impl Daemon {
                     key
                 ],
             )?;
-            log(&format!(
-                "Task {task_id} dispatched → {} [CUDA_VISIBLE_DEVICES={gpu_str}]  (job {key}, PGID {pid})",
-                host.name
-            ));
+            match (pid, sge_id) {
+                (Some(pid), _) => log(&format!(
+                    "Task {task_id} dispatched → {} [CUDA_VISIBLE_DEVICES={gpu_str}]  (job {key}, PGID {pid})",
+                    host.name
+                )),
+                (_, sge_id) => log(&format!(
+                    "Task {task_id} submitted to SGE via {} as job {}  (job {key}).",
+                    host.name,
+                    sge_id.unwrap_or(0)
+                )),
+            }
             self.provenance("start", task_id, None);
             return Ok(());
         }

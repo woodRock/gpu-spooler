@@ -36,6 +36,8 @@ function task(id: number, status: string, fields: Partial<Task> = {}): Task {
     git_dirty: null,
     git_dirty_paths: null,
     no_record: 0,
+    sge_job_id: null,
+    sge_state: null,
     ...fields,
   };
 }

@@ -1,7 +1,7 @@
 //! What the tui shows, as styled text: the queue table's cells and the GPU heatmap. Pure
 //! functions of the data, so they can be compared with the Python tui's output.
 
-use gpu_spooler::core::runtime;
+use gpu_spooler::core::{runtime, shown_status};
 use gpu_spooler::db::Task;
 use gpu_spooler::fmt::{fmt_duration, fmt_ts, one_line, truncate};
 use gpu_spooler::gpu::ServerResult;
@@ -45,7 +45,7 @@ pub fn task_row(t: &Task) -> Vec<(String, Style)> {
     let plain = |s: String| (s, Style::new());
     vec![
         plain(t.id.to_string()),
-        (t.status.clone(), status_style(&t.status)),
+        (shown_status(t), status_style(&t.status)),
         plain(t.num_gpus.to_string()),
         plain(or_dash(&t.host_spec)),
         plain(or_dash(&t.server)),

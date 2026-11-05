@@ -46,6 +46,8 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("git_dirty", "INTEGER"),                    // uncommitted changes there at launch
     ("git_dirty_paths", "TEXT"),                 // which tracked files (newline separated, at most 50)
     ("no_record", "INTEGER NOT NULL DEFAULT 0"), // task submit --no-record: not a taura run
+    ("sge_job_id", "INTEGER"),                   // the job's ID in Sun Grid Engine
+    ("sge_state", "TEXT"),                       // its state in qstat (qw, r, s, Eqw, ...)
 ];
 
 /// One row of `tasks`.
@@ -81,6 +83,8 @@ pub struct Task {
     pub git_dirty: Option<i64>,
     pub git_dirty_paths: Option<String>,
     pub no_record: i64,
+    pub sge_job_id: Option<i64>,
+    pub sge_state: Option<String>,
 }
 
 // SQLite keeps whatever type was written, so read leniently: a number where text is expected
@@ -143,6 +147,8 @@ impl Task {
             git_dirty: int(row, "git_dirty")?,
             git_dirty_paths: text(row, "git_dirty_paths")?,
             no_record: int(row, "no_record")?.unwrap_or(0),
+            sge_job_id: int(row, "sge_job_id")?,
+            sge_state: text(row, "sge_state")?,
         })
     }
 }

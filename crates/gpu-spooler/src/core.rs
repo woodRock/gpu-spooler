@@ -53,6 +53,12 @@ pub fn runtime(t: &Task) -> Option<f64> {
     Some(ended - started)
 }
 
+/// The status to show: a running SGE task says if the grid is holding it back.
+pub fn shown_status(t: &Task) -> String {
+    let note = t.sge_state.as_deref().filter(|_| t.status == "running").and_then(crate::jobs::sge_note);
+    note.map_or_else(|| t.status.clone(), str::to_string)
+}
+
 /// How a finished task maps to a process exit code.
 pub fn wait_exit_code(t: &Task) -> i32 {
     match t.status.as_str() {
@@ -166,7 +172,7 @@ pub fn snapshot_models(snapshot: Option<&Value>, host: &str, gpu_indices: Option
 pub fn task_details(t: &Task, cfg: Option<&Config>, snapshot: Option<&Value>, now: f64) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = vec![];
     let mut add = |label: &str, value: String| out.push((label.to_string(), value));
-    add("Status", t.status.clone());
+    add("Status", shown_status(t));
     if let Some(n) = t.name.as_ref().filter(|n| !n.is_empty()) {
         add("Label", n.clone());
     }
@@ -212,6 +218,9 @@ pub fn task_details(t: &Task, cfg: Option<&Config>, snapshot: Option<&Value>, no
     if let Some(key) = set(&t.job_key) {
         let pgid = t.remote_pid.filter(|p| *p != 0).map_or(String::new(), |p| format!("  (PGID {p})"));
         add("Job", format!("~/.gpu-spooler/jobs/{key}{pgid}"));
+    }
+    if let Some(id) = t.sge_job_id {
+        add("SGE job", format!("{id}{}", t.sge_state.as_ref().map_or(String::new(), |s| format!("  ({s})"))));
     }
     if t.status == "running" {
         if let Some(seen) = t.last_seen.filter(|s| *s != 0.0) {
@@ -298,7 +307,8 @@ pub fn getuser() -> String {
 
 /// Fields reset when a task goes back to the queue after a failed launch.
 pub const REQUEUE: &str = "status='queued', ssh_pid=NULL, started_at=NULL, finished_at=NULL, server=NULL, \
-gpu_indices=NULL, job_key=NULL, remote_pid=NULL, log_offset=0, remote_dir=NULL, retry_count=retry_count+1";
+gpu_indices=NULL, job_key=NULL, remote_pid=NULL, log_offset=0, remote_dir=NULL, retry_count=retry_count+1, \
+sge_job_id=NULL, sge_state=NULL";
 
 /// What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
 /// `num_gpus` must not become a CPU job); everything else defaults.
@@ -410,6 +420,9 @@ pub fn submit(transport: &Transport, opts: &SubmitOpts) -> Result<Submitted, Tas
     let candidates = cfg
         .select(host_spec.as_deref())
         .map_err(|e| TaskError::User(format!("-H {}: {e}", host_spec.as_deref().unwrap_or("None"))))?;
+    if opts.num_gpus > 0 && !candidates.is_empty() && candidates.iter().all(|h| h.is_sge()) {
+        return Err(TaskError::User("SGE hosts only run CPU jobs: use -g 0".into()));
+    }
     let working_dir = working_dir(&transport.paths, opts.working_dir.as_deref());
 
     // Off an ECS filesystem, a git repo is run from its remote copy (see repo.rs).
@@ -450,7 +463,7 @@ pub fn submit(transport: &Transport, opts: &SubmitOpts) -> Result<Submitted, Tas
             sub.warnings.push(problem);
         }
     }
-    if opts.num_gpus == 0 && !candidates.iter().any(|h| h.cpu_slots > 0) {
+    if opts.num_gpus == 0 && !candidates.iter().any(|h| h.cpu_slots > 0 || h.is_sge()) {
         sub.warnings.push("no selected host has cpu_slots > 0; this task will stay queued (see `task hosts`).".into());
     }
     let copies = match &local_repo {
@@ -574,7 +587,12 @@ fn kill_remote(transport: &Transport, t: &Task) -> (bool, String) {
     let Some(host) = transport.cfg.hosts.get(&server) else {
         return (false, format!("host '{}' is not in the config", t.server.as_deref().unwrap_or("None")));
     };
-    let r = transport.run(host, &crate::jobs::kill_script(key, 10), Duration::from_secs(30));
+    let script =
+        if host.is_sge() { crate::jobs::sge_kill_script(host, key) } else { crate::jobs::kill_script(key, 10) };
+    let r = transport.run(host, &script, Duration::from_secs(30));
+    if r.rc == 0 && r.stdout.contains("KILLED") && host.is_sge() {
+        return (true, format!("Deleted job {} from SGE.", t.sge_job_id.map_or("?".to_string(), |j| j.to_string())));
+    }
     if r.rc == 0 && r.stdout.contains("KILLED") {
         let pgid = t.remote_pid.filter(|p| *p != 0).map_or("?".to_string(), |p| p.to_string());
         return (
@@ -593,9 +611,10 @@ fn kill_remote(transport: &Transport, t: &Task) -> (bool, String) {
         .last()
         .filter(|_| !err.is_empty())
         .map_or(format!("exit {}", r.rc), |l| l.to_string());
-    let tail = match t.remote_pid.filter(|p| *p != 0) {
-        Some(pid) => format!(" and `kill -- -{pid}`."),
-        None => ".".into(),
+    let tail = match (t.remote_pid.filter(|p| *p != 0), t.sge_job_id) {
+        (Some(pid), _) => format!(" and `kill -- -{pid}`."),
+        (None, Some(job)) => format!(" and `qdel {job}`."),
+        (None, None) => ".".into(),
     };
     (
         false,

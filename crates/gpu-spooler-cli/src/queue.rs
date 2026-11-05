@@ -6,7 +6,7 @@ use gpu_spooler::core::{self, SubmitOpts, Submitted};
 
 #[derive(clap::Args, Debug)]
 pub struct SubmitArgs {
-    /// GPUs the task needs (default 1; 0 = CPU-only, on hosts with cpu_slots)
+    /// GPUs the task needs (default 1; 0 = CPU-only, on hosts with cpu_slots or a named SGE grid)
     #[arg(short = 'g', long, value_name = "N", default_value_t = 1, allow_negative_numbers = true)]
     pub gpus: i64,
     /// Only run on these hosts, groups or tags (comma separated)
