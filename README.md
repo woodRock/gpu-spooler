@@ -63,6 +63,7 @@ task fetch results --after "$id"               # copy results/ back once the tas
 ## Contents
 
 - [Quick Start](#quick-start)
+- [Using It from an Agent](#using-it-from-an-agent)
 - [How It Works](#how-it-works)
 - [Installation](#installation)
 - [Commands](#commands)
@@ -80,10 +81,42 @@ task fetch results --after "$id"               # copy results/ back once the tas
   - [Fetching Results](#fetching-results)
   - [Run Provenance (taura)](#run-provenance-taura)
 - [Local Host](#local-host)
+- [ECS Grid (CPU jobs)](#ecs-grid-cpu-jobs)
 - [GPU Servers](#gpu-servers)
 - [State & Logs](#state--logs)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+
+---
+
+## Using It from an Agent
+
+`task` suits agents and scripts: every command below runs without prompts, and `task COMMAND -h` lists its options. The usual loop:
+
+```bash
+task hosts                                            # what's configured, and is it reachable?
+task sync                                             # from a laptop: push the repo first
+id=$(task submit -q -g 1 -n run1 -- python3 train.py) # queue it and keep the ID
+task wait "$id" --timeout 3600; rc=$?                 # block; rc says how it ended
+task logs "$id" | tail -50                            # read the output
+task fetch results --after "$id"                      # copy results back
+```
+
+Choose where a job runs from what it needs:
+
+| The job needs | Submit with |
+|---------------|-------------|
+| A GPU | `-g N`, plus `-t MODEL` or `-m GB` if it matters |
+| CPU only, many runs, no deadline | `-g 0 -H grid`, if `task hosts` lists a host of kind `sge` (see [ECS Grid](#ecs-grid-cpu-jobs)) |
+| CPU only, on this machine | `-g 0 -H local`, if a host has `cpu_slots` |
+
+Rules that save a failed run:
+
+- **Check `rc` from `task wait`:** see the [exit codes](#managing-tasks). `124` means the wait timed out, and the task is still running. Don't resubmit it.
+- **Read warnings from `submit`.** With `-q` they go to stderr. A stale or missing repo copy means the job runs old code or fails at once, so run `task sync` first.
+- **A task runs once.** `failed` means the command itself failed, so read the log before `task resubmit ID`.
+- **Grid jobs have no guaranteed finish time.** They wait as `waiting`, and pause as `suspended` when someone uses the machine. Set a long `--timeout`, and treat `error` as needing a look with `task info ID`.
+- **Humans only:** `task connect` (password or OTP), `task ssh` and `task tui` are interactive. If `task hosts` shows an authentication error, ask the user to run `task connect`.
 
 ---
 
@@ -161,7 +194,7 @@ task submit [-g N] [-H SPEC] [-t MODEL] [-m GB] [-n LABEL] [-C DIR] [-q] -- COMM
 
 | Flag | Description |
 |------|-------------|
-| `-g N` / `--gpus N` | GPUs the job needs (default 1). `-g 0` is a CPU-only job, which runs on hosts with `cpu_slots` (see [Local Host](#local-host)). |
+| `-g N` / `--gpus N` | GPUs the job needs (default 1). `-g 0` is a CPU-only job, which runs on hosts with `cpu_slots` (see [Local Host](#local-host)) or on an SGE grid you name with `-H` (see [ECS Grid](#ecs-grid-cpu-jobs)). |
 | `-H SPEC` / `--hosts SPEC` | Only run on these hosts, groups or tags (comma separated), e.g. `-H cuda14,cuda15` or `-H local`. |
 | `-t MODEL` / `--gpu-type MODEL` | Only use GPUs that `nvidia-smi` names this model, e.g. `-t "RTX A5000"`; comma separate several. Exact match, ignoring case and a leading `NVIDIA `, so `RTX 6000` does not also match `RTX 6000 Ada Generation`. Use it when results must come from one GPU model (seeded CUDA runs are bit-reproducible only on the same model). |
 | `-m GB` / `--min-mem GB` | Only use GPUs with at least this much memory, e.g. `-m 40` for the 48 GB cards. |
@@ -198,6 +231,7 @@ task submit -g 0 -H local -- 'python3 make_plots.py && echo done'
 |--------|---------|
 | `queued` | Waiting for a free GPU |
 | `running` | Currently executing on a server |
+| `waiting`, `suspended`, `held`, `error` | ECS Grid only: running as far as the queue goes, but SGE is holding it back (see [ECS Grid](#ecs-grid-cpu-jobs)) |
 | `done` | Finished successfully (exit 0) |
 | `failed` | Finished with a non-zero exit code. Each task runs once: `task resubmit ID` runs it again. (A launch that fails before the command starts, such as an ssh error, is re-queued up to 3 times.) |
 | `killed` | Killed with `task kill` |
@@ -497,6 +531,50 @@ cpu_slots = 2      # how many -G 0 jobs may run here at once
 ```
 
 If the machine has NVIDIA GPUs, `-G N` jobs can use them too. Without `nvidia-smi`, it only takes CPU jobs. `-G 0` jobs go only to hosts with free `cpu_slots`. Use `-H local` to pin a job to this machine.
+
+---
+
+## ECS Grid (CPU jobs)
+
+The [ECS Grid](https://ecs.wgtn.ac.nz/Support/TechNoteEcsGrid) runs CPU jobs on the School's workstations when nobody is using them, under Sun Grid Engine (SGE). A host with `kind = "sge"` is a machine you can submit from. SGE chooses where each job runs, so the daemon hands the job to `qsub` and follows it with `qstat`. Add one to `hosts.toml`:
+
+```toml
+[jumps.grid]                      # off campus: laptop → entry → barretts
+chain = ["woodj4@entry.ecs.vuw.ac.nz"]
+
+[hosts.grid]
+kind = "sge"
+hostname = "barretts.ecs.vuw.ac.nz"
+user = "woodj4"
+jump = "grid"
+remote_root = "/vol/ecrg-solar/woodj4"
+# sge_wd = "/vol/grid-solar/sgeusers/woodj4"   # default; must exist: it's where SGE starts jobs
+# sge_queue = "all.q"                          # default
+# sge_settings = "/opt/sge/default/common/settings.sh"   # default; replaces `need sgegrid`
+```
+
+Then name the host when you submit. Grid hosts are never picked unless you name them, and they only take CPU jobs:
+
+```bash
+task submit -g 0 -H grid -- python3 run.py --seed 1
+```
+
+`task list`, `logs`, `kill`, `fetch --after` and the TUI work as usual. While SGE holds a job back, `task list` shows why instead of `running`:
+
+| Shown | Meaning |
+|-------|---------|
+| `waiting` | In SGE's queue (`qw`) |
+| `suspended` | Paused, usually because someone sat down at the machine. It resumes when they leave, so there's no guaranteed finish time. |
+| `held` | On hold in SGE |
+| `error` | SGE couldn't start it (`Eqw`). `task info ID` gives the job number; `qstat -explain E -j JOB` says why. If the reason is a directory it couldn't reach, the tech note clears it from `greta-pt` with `qmod`. |
+
+Things to know:
+
+- **The job needs what a grid machine has.** `need` doesn't work in grid jobs. Your `.bashrc` is loaded, but anything set up with `need` has to be set up by hand.
+- **Heavy writes belong in scratch.** Jobs run in their working directory, as on the GPU servers, which is usually on NFS. `$TASK_SCRATCH` is a directory on the machine's own disk: write there, then copy what you want to keep before the job ends, because SGE deletes it afterwards.
+- **Logs arrive more slowly.** To keep `qstat` load down, grid jobs are polled every 15 seconds, and a job that vanishes from `qstat` without an exit code counts as `lost` after about 90 seconds.
+- **Staff accounts aren't supported yet.** Job directories live in `~/.gpu-spooler/jobs`, and staff home directories aren't visible on grid machines.
+- **Array jobs aren't supported yet.** Each task is one SGE job.
 
 ---
 

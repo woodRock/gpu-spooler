@@ -2044,7 +2044,7 @@
   "input": "[hosts.a]\nkind = \"docker\"",
   "output": {
    "error": "ConfigError",
-   "message": "hosts.a: kind must be ssh or local"
+   "message": "hosts.a: kind must be ssh, local or sge"
   }
  },
  {

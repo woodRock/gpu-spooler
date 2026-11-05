@@ -224,6 +224,14 @@ pub fn parse_output(raw: &str) -> Vec<GpuInfo> {
 
 /// Query one host. With `debug`, the raw output is printed.
 pub fn query_host(transport: &Transport, host: &Host, debug: bool) -> ServerResult {
+    if host.is_sge() {
+        // A submit host's GPUs aren't ours to use, and on ECS its nvidia-smi fails: just reach it.
+        let r = transport.run(host, "true\n", QUERY_TIMEOUT);
+        return match r.rc {
+            0 => ServerResult::up(&host.name, vec![]),
+            rc => ServerResult::down(&host.name, format!("ssh exited {rc}")),
+        };
+    }
     let r = transport.run(host, REMOTE_CMD, QUERY_TIMEOUT);
     if debug {
         println!("\n--- RAW OUTPUT FROM {} ---", host.name);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useActions } from "./actions";
 import { DaemonBanner } from "./Banners";
-import { ACTIVE, fmtDuration, fmtTs, runtime } from "./format";
+import { ACTIVE, fmtDuration, fmtTs, runtime, shownStatus } from "./format";
 import { useKeys } from "./keys";
 import { TaskPane } from "./TaskPane";
 import type { QueueState, Task } from "./types";
@@ -180,7 +180,7 @@ function Row({ task: t, now, selected, onSelect }: { task: Task; now: number; se
       <td className="num id">{t.id}</td>
       <td>
         <span className={`status s-${t.status}`}>
-          {t.status}
+          {shownStatus(t)}
           {exit}
         </span>
       </td>

@@ -53,7 +53,12 @@ The same short flag means the same thing everywhere: -H hosts/groups/tags,
 Examples:
   task submit -- python3 train.py --epochs 50
   task submit -g 2 -n \"ablation\" -t \"RTX A5000\" -- ./run.sh
-  id=$(task submit -q -- python3 eval.py) && task wait \"$id\" && task fetch results";
+  id=$(task submit -q -- python3 eval.py) && task wait \"$id\" && task fetch results
+  task submit -g 0 -H grid -- python3 run.py --seed 1
+
+An SGE grid is a host with kind = \"sge\" in hosts.toml (here named grid). SGE
+places the jobs, so only -g 0 tasks that name the host run there. While SGE holds
+a task back, `task list` shows waiting, suspended, held or error, not running.";
 
 /// Shown at the end of `task COMMAND -h`.
 fn examples(name: &str, rows: &[(&str, &str)]) -> String {
@@ -90,6 +95,7 @@ enum Cmd {
         ("-t \"RTX A5000\" -- python3 eval.py", "only on RTX A5000 GPUs"),
         ("-m 40 -H cuda14,cuda15 -- python3 big.py", "48 GB cards on these hosts"),
         ("-g 0 -H local -- 'make plots && echo done'", "CPU job; one argument = shell code"),
+        ("-g 0 -H grid -- python3 run.py --seed 1", "CPU job on an SGE grid (kind = \"sge\")"),
         ("id=$(task submit -q -- python3 train.py)", "keep the ID for wait / fetch"),
     ]))]
     Submit(queue::SubmitArgs),

@@ -110,7 +110,7 @@ pub fn list(ctx: &Ctx, args: &ListArgs) -> CmdResult {
             out,
             "{:>4}  {}  {:>1}  {:<10}  {:<14}  {:>4}  {:11}  {:>8}  {label}{note}",
             t.id,
-            colorize(&format!("{:10}", t.status), status_color(&t.status)),
+            colorize(&format!("{:10}", core::shown_status(t)), status_color(&t.status)),
             t.num_gpus,
             spec,
             or_dash(&t.server),

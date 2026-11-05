@@ -3,7 +3,7 @@
 
 use crate::color::{colorize, BOLD, DIM, GREEN, RED, RESET};
 use crate::ctx::{CmdResult, Ctx, Fail};
-use gpu_spooler::config::{config_template, Host, Role};
+use gpu_spooler::config::{config_template, Host, Kind, Role};
 use gpu_spooler::fmt::truncate;
 use gpu_spooler::gpu::query_hosts;
 use gpu_spooler::py;
@@ -80,7 +80,11 @@ pub fn hosts(ctx: &Ctx) -> CmdResult {
         let gpus = r.filter(|r| r.reachable).map_or("-".to_string(), |r| r.total_gpus().to_string());
         let pmap = h.path_map.iter().map(|(l, rem)| format!("{l} → {rem}")).collect::<Vec<_>>().join(", ");
         let cpu = if h.cpu_slots != 0 { h.cpu_slots.to_string() } else { "-".into() };
-        let kind = if h.is_local() { "local" } else { "ssh" };
+        let kind = match h.kind {
+            Kind::Ssh => "ssh",
+            Kind::Local => "local",
+            Kind::Sge => "sge",
+        };
         writeln!(
             out,
             "{:<14} {kind:<5} {:<8} {:<16} {status} {gpus:>4} {cpu:>3}  {}",

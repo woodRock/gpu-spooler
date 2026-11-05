@@ -55,7 +55,7 @@ pub const DEFAULT_SERVER_INFO: &[(&str, &str, i64, i64, i64, i64)] = &[
 
 const INFO_FIELDS: [&str; 5] = ["gpu_type", "num_gpus", "gpu_mem_gb", "cpu_cores", "sys_mem_gb"];
 
-const HOST_KEYS: [&str; 17] = [
+const HOST_KEYS: [&str; 20] = [
     "kind",
     "hostname",
     "user",
@@ -73,6 +73,9 @@ const HOST_KEYS: [&str; 17] = [
     "gpu_mem_gb",
     "cpu_cores",
     "sys_mem_gb",
+    "sge_queue",
+    "sge_settings",
+    "sge_wd",
 ];
 
 /// The names of the built-in servers, in order.
@@ -94,6 +97,9 @@ fn err<T>(msg: impl Into<String>) -> Result<T, ConfigError> {
 pub enum Kind {
     Ssh,
     Local,
+    /// A submit host for a Sun Grid Engine grid: SGE places the jobs, so only `-g 0` tasks that
+    /// name the host run there.
+    Sge,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -170,6 +176,12 @@ pub struct Host {
     pub gpu_mem_gb: Option<Num>,
     pub cpu_cores: Option<i64>,
     pub sys_mem_gb: Option<Num>,
+    /// SGE queue (kind = "sge")
+    pub sge_queue: String,
+    /// sourced before any SGE command; `need sgegrid` only works in interactive shells
+    pub sge_settings: String,
+    /// the job's initial working directory on the grid
+    pub sge_wd: String,
 }
 
 impl Host {
@@ -193,6 +205,9 @@ impl Host {
             gpu_mem_gb: None,
             cpu_cores: None,
             sys_mem_gb: None,
+            sge_queue: "all.q".into(),
+            sge_settings: "/opt/sge/default/common/settings.sh".into(),
+            sge_wd: String::new(),
         }
     }
 
@@ -203,6 +218,10 @@ impl Host {
 
     pub fn is_local(&self) -> bool {
         self.kind == Kind::Local
+    }
+
+    pub fn is_sge(&self) -> bool {
+        self.kind == Kind::Sge
     }
 }
 
@@ -277,10 +296,13 @@ impl Config {
     }
 
     /// Resolve a comma-separated list of host names, group names or tags to enabled worker hosts
-    /// (in config order). Empty/None selects all workers.
+    /// (in config order). Empty/None selects all workers except SGE submit hosts, which have to
+    /// be named.
     pub fn select(&self, spec: Option<&str>) -> Result<Vec<&Host>, ConfigError> {
         let workers = self.workers();
-        let Some(spec) = spec.filter(|s| !s.is_empty()) else { return Ok(workers) };
+        let Some(spec) = spec.filter(|s| !s.is_empty()) else {
+            return Ok(workers.into_iter().filter(|h| !h.is_sge()).collect());
+        };
         let mut wanted = std::collections::HashSet::new();
         for item in spec.split(',').map(py::strip) {
             if item.is_empty() {
@@ -751,7 +773,8 @@ pub fn parse_config(data: &Table, paths: &Paths) -> Result<Config, ConfigError> 
             None => Kind::Ssh,
             Some(Value::String(k)) if k == "ssh" => Kind::Ssh,
             Some(Value::String(k)) if k == "local" => Kind::Local,
-            Some(_) => return err(format!("{where_}: kind must be ssh or local")),
+            Some(Value::String(k)) if k == "sge" => Kind::Sge,
+            Some(_) => return err(format!("{where_}: kind must be ssh, local or sge")),
         };
         let jump = opt_string(v, "jump", &where_)?;
         if let Some(j) = &jump {
@@ -784,6 +807,17 @@ pub fn parse_config(data: &Table, paths: &Paths) -> Result<Config, ConfigError> 
         h.gpu_mem_gb = opt_num(v, "gpu_mem_gb", &where_)?;
         h.cpu_cores = opt_int(v, "cpu_cores", &where_)?;
         h.sys_mem_gb = opt_num(v, "sys_mem_gb", &where_)?;
+        if let Some(q) = opt_string(v, "sge_queue", &where_)? {
+            h.sge_queue = q;
+        }
+        if let Some(s) = opt_string(v, "sge_settings", &where_)? {
+            h.sge_settings = s;
+        }
+        if h.is_sge() {
+            let Some(user) = &h.user else { return err(format!("{where_}: kind = \"sge\" needs a user")) };
+            let wd = opt_string(v, "sge_wd", &where_)?;
+            h.sge_wd = wd.unwrap_or_else(|| format!("/vol/grid-solar/sgeusers/{user}"));
+        }
         debug_assert!(INFO_FIELDS.iter().all(|f| HOST_KEYS.contains(f)));
         hosts.insert(hname.clone(), h);
     }
@@ -920,6 +954,25 @@ mod tests {
         let names: Vec<&str> = hops.iter().map(|x| x.name.as_str()).collect();
         assert_eq!(names, ["ts-entry", "ts-barretts"]);
         assert!(hops.iter().all(|x| x.role == Role::Jump && x.user.as_deref() == Some("someone")));
+    }
+
+    #[test]
+    fn sge_hosts_have_to_be_named() {
+        let cfg = parse(
+            "[hosts.a]\nhostname = \"a\"\n[hosts.grid]\nkind = \"sge\"\nhostname = \"s\"\nuser = \"u\"\n\
+             sge_wd = \"/vol/x\"\n",
+        )
+        .unwrap();
+        let names = |hosts: Vec<&Host>| hosts.iter().map(|h| h.name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(cfg.select(None).unwrap()), ["a"]);
+        assert_eq!(names(cfg.select(Some("grid")).unwrap()), ["grid"]);
+        let h = &cfg.hosts["grid"];
+        assert_eq!((h.sge_queue.as_str(), h.sge_wd.as_str()), ("all.q", "/vol/x"));
+        assert_eq!(h.sge_settings, "/opt/sge/default/common/settings.sh");
+
+        let cfg = parse("[hosts.g]\nkind = \"sge\"\nuser = \"u\"\n").unwrap();
+        assert_eq!(cfg.hosts["g"].sge_wd, "/vol/grid-solar/sgeusers/u");
+        assert!(parse("[hosts.g]\nkind = \"sge\"\n").unwrap_err().0.contains("needs a user"));
     }
 
     #[test]
