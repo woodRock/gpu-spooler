@@ -505,11 +505,14 @@ If [taura](https://github.com/woodRock/taura) is installed and the repo keeps a 
 |------|-------------------------|
 | the task starts | the command, the commit the server actually checked out (a `task sync` of a dirty tree is recorded as dirty, with the commit it was made on), `--config`/`--seed` from the command, host, GPUs, start time |
 | the task ends | exit code and finish time (a task re-queued after a failed launch records each attempt as its own run: `<date>-spooler-<id>-2`, ...) |
+| the task is lost | the time it disappeared, and a note: taura shows it as failed, with no exit code |
 | `task fetch PATHS --after ID` | the files that came back new or changed, with content hashes |
 
 With several IDs (`--after 85 86`), each file is recorded on the task that wrote it: the task whose command names the file or a directory above it most specifically (`--out results/a` claims `results/a/summary.csv`), and otherwise the task that was running when it was written. A file that neither tells apart (same command, same time) is recorded on each task with a warning; fetch those tasks' outputs one at a time to keep them apart.
 
 taura then links the paper's results and figures to these runs (`taura trace`, `taura tui`) and warns when a result comes from a dirty or failed run, or from code that has changed since. Commands run on your own machine are recorded the same way with `taura run -- python3 train.py ...`.
+
+ECS Grid tasks are recorded the same way, from when a grid machine starts them: nothing is recorded while a job waits in the queue, and `started`, `commit`, `host` (the machine, such as `big-thumb`) and `[env]` all come from that machine. A job lost in the queue is recorded too, with a note that it never ran. `started` and `finished` are the job's own clock. Time SGE kept it suspended stays between them, and the record's `note` says how much, to within 5 seconds for each suspension.
 
 For a one-off check that isn't an experiment, `task submit --no-record -- ...` skips the record.
 
@@ -572,6 +575,7 @@ Things to know:
 
 - **The job needs what a grid machine has.** `need` doesn't work in grid jobs. Your `.bashrc` is loaded, but anything set up with `need` has to be set up by hand.
 - **Heavy writes belong in scratch.** Jobs run in their working directory, as on the GPU servers, which is usually on NFS. `$TASK_SCRATCH` is a directory on the machine's own disk: write there, then copy what you want to keep before the job ends, because SGE deletes it afterwards.
+- **Runtimes leave out suspended time.** SGE stops a job when someone uses its workstation. `task info` shows the machine and how long the job was suspended, and its runtime is the time the job actually ran.
 - **Logs arrive more slowly.** To keep `qstat` load down, grid jobs are polled every 15 seconds, and a job that vanishes from `qstat` without an exit code counts as `lost` after about 90 seconds.
 - **Staff accounts aren't supported yet.** Job directories live in `~/.gpu-spooler/jobs`, and staff home directories aren't visible on grid machines.
 - **Array jobs aren't supported yet.** Each task is one SGE job.

@@ -48,6 +48,8 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("no_record", "INTEGER NOT NULL DEFAULT 0"), // task submit --no-record: not a taura run
     ("sge_job_id", "INTEGER"),                   // the job's ID in Sun Grid Engine
     ("sge_state", "TEXT"),                       // its state in qstat (qw, r, s, Eqw, ...)
+    ("machine", "TEXT"),                         // the grid machine SGE ran it on
+    ("sge_suspended", "REAL"),                   // seconds SGE kept it suspended
 ];
 
 /// One row of `tasks`.
@@ -85,6 +87,8 @@ pub struct Task {
     pub no_record: i64,
     pub sge_job_id: Option<i64>,
     pub sge_state: Option<String>,
+    pub machine: Option<String>,
+    pub sge_suspended: Option<f64>,
 }
 
 // SQLite keeps whatever type was written, so read leniently: a number where text is expected
@@ -149,6 +153,8 @@ impl Task {
             no_record: int(row, "no_record")?.unwrap_or(0),
             sge_job_id: int(row, "sge_job_id")?,
             sge_state: text(row, "sge_state")?,
+            machine: text(row, "machine")?,
+            sge_suspended: real(row, "sge_suspended")?,
         })
     }
 }

@@ -1,19 +1,21 @@
 //! Optional run provenance: record each task as a taura run (github.com/woodRock/taura).
 //!
-//! When `taura` is on PATH and the task's local repo has a taura ledger (a `ledger/` directory),
+//! When `taura` is installed and the task's local repo has a taura ledger (a `ledger/` directory),
 //! the daemon calls `taura record` when a task starts and finishes, and `task fetch --after ID`
 //! calls it with the files it brought back. The record lands in the local repo's ledger/runs/,
 //! with the commit the server actually ran (captured at launch), the host, GPUs and exit code.
+//! An SGE task starts when a grid machine starts it, so that is when its "start" is recorded.
 //! taura is never required: without it, or with `[provenance] taura = "off"`, nothing happens. A
 //! failing `taura record` is logged and never affects the task.
 
 use crate::config::realpath;
 use crate::db::Task;
+use crate::fmt::fmt_duration;
 use crate::jobs::ENV_MARK;
 use crate::py;
 use crate::shell;
 use chrono::{DateTime, Local, TimeZone};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 use wait_timeout::ChildExt;
@@ -50,10 +52,22 @@ pub fn ledger_repo(t: &Task) -> Option<String> {
     Path::new(&top).join("ledger").is_dir().then_some(top)
 }
 
+/// `taura`, on PATH or where it gets installed: a daemon the desktop app started has launchd's
+/// PATH, which has none of these.
+pub fn taura_exe() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    py::which("taura").or_else(|| {
+        [home.join(".local/bin"), "/opt/homebrew/bin".into(), "/usr/local/bin".into()]
+            .into_iter()
+            .map(|d| d.join("taura"))
+            .find(|exe| exe.is_file())
+    })
+}
+
 /// Will this task be recorded with taura? (taura installed, repo keeps a ledger, not turned off in
 /// hosts.toml or for this task with task submit --no-record)
 pub fn enabled(t: &Task, setting: &str) -> bool {
-    setting != "off" && t.no_record == 0 && py::which("taura").is_some() && ledger_repo(t).is_some()
+    setting != "off" && t.no_record == 0 && taura_exe().is_some() && ledger_repo(t).is_some()
 }
 
 /// How to run the probe like the job's command: its VAR=value prefix and its python (python3 if
@@ -110,6 +124,32 @@ fn dirty_args(t: &Task) -> Vec<String> {
     args
 }
 
+/// Where it ran: the grid machine, if SGE chose one.
+fn host_of(t: &Task) -> Option<&String> {
+    t.machine.as_ref().or(t.server.as_ref()).filter(|s| !s.is_empty())
+}
+
+/// What the record's times and status don't say.
+fn note(t: &Task) -> Option<String> {
+    let mut notes = vec![];
+    if t.status == "lost" {
+        notes.push(if t.started_at.is_some() {
+            "Lost: the job disappeared without an exit code; finished is when gpu-spooler noticed.".to_string()
+        } else {
+            "Lost: the job disappeared from SGE before it started, so it never ran.".to_string()
+        });
+    }
+    if let Some(secs) = t.sge_suspended.filter(|s| *s != 0.0) {
+        let took = t.started_at.zip(t.finished_at).map(|(s, f)| f - s - secs);
+        notes.push(format!(
+            "SGE suspended it for {} between started and finished, so it ran for {}.",
+            fmt_duration(Some(secs)),
+            fmt_duration(took)
+        ));
+    }
+    (!notes.is_empty()).then(|| notes.join(" "))
+}
+
 /// The `taura record` arguments for this event, or None if this task isn't tracked.
 pub fn record_args(event: &str, t: &Task, outputs: &[String]) -> Option<Vec<String>> {
     let repo = ledger_repo(t)?;
@@ -125,13 +165,14 @@ pub fn record_args(event: &str, t: &Task, outputs: &[String]) -> Option<Vec<Stri
             if wdir != root && wdir.starts_with(&format!("{root}/")) {
                 args.extend(["--cwd".into(), crate::config::relpath(&wdir, &root)]);
             }
-            if let Some(s) = t.server.as_ref().filter(|s| !s.is_empty()) {
+            if let Some(s) = host_of(t) {
                 args.extend(["--host".into(), s.clone()]);
             }
-            if let Some(g) = t.gpu_indices.as_ref().filter(|g| !g.is_empty()) {
+            if let Some(g) = &t.gpu_indices {
                 args.extend(["--gpus".into(), g.clone()]);
             }
-            if let Some(s) = t.started_at.filter(|s| *s != 0.0) {
+            // A task that never began (lost in the SGE queue) ran for no time at all.
+            if let Some(s) = t.started_at.or(t.finished_at).filter(|s| *s != 0.0) {
                 args.extend(["--started".into(), py::repr_float(s)]);
             }
             match commit {
@@ -144,6 +185,16 @@ pub fn record_args(event: &str, t: &Task, outputs: &[String]) -> Option<Vec<Stri
             }
         }
         "finish" => {
+            // SGE may have restarted the job elsewhere since "start".
+            if let Some(s) = host_of(t) {
+                args.extend(["--host".into(), s.clone()]);
+            }
+            if let Some(s) = t.started_at.filter(|s| *s != 0.0) {
+                args.extend(["--started".into(), py::repr_float(s)]);
+            }
+            if let Some(n) = note(t) {
+                args.extend(["--note".into(), n]);
+            }
             if let Some(c) = t.exit_code {
                 args.extend(["--exit-code".into(), c.to_string()]);
             }
@@ -167,13 +218,28 @@ pub fn record_args(event: &str, t: &Task, outputs: &[String]) -> Option<Vec<Stri
     Some(args)
 }
 
+/// Has this attempt a record yet?
+fn recorded(t: &Task) -> bool {
+    ledger_repo(t).is_some_and(|repo| Path::new(&repo).join("ledger/runs").join(format!("{}.toml", run_id(t))).exists())
+}
+
 /// Record a task event with taura, if enabled and available. True if a record was written.
 pub fn notify(event: &str, t: &Task, setting: &str, outputs: &[String], log: &dyn Fn(&str)) -> bool {
     if setting == "off" || t.no_record != 0 {
         return false;
     }
-    let Some(exe) = py::which("taura") else { return false };
+    let Some(exe) = taura_exe() else {
+        if ledger_repo(t).is_some() {
+            log(&format!("Task {}: not recorded: the repo has a taura ledger, but taura was not found.", t.id));
+        }
+        return false;
+    };
     let Some(mut args) = record_args(event, t, outputs) else { return false };
+    // Without a "start" (a job lost in the queue, a daemon that couldn't find taura at the time)
+    // taura would write a record with no command.
+    if event == "finish" && !recorded(t) {
+        notify("start", t, setting, &[], log);
+    }
     let env = if event == "finish" { env_from_log(t.log_file.as_deref()) } else { None };
     let mut env_file = None;
     if let Some(env) = env {
@@ -288,6 +354,40 @@ mod tests {
         assert_eq!(none[pos(&none, "--commit") + 1], "unknown");
         let plain = git_repo(&tmp.path().join("plain"), false);
         assert!(record_args("start", &row(&plain), &[]).is_none());
+    }
+
+    #[test]
+    fn a_grid_task_says_which_machine_ran_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = git_repo(&tmp.path().join("proj"), true);
+        let t = Task {
+            server: Some("grid".into()),
+            gpu_indices: Some(String::new()),
+            machine: Some("big-thumb".into()),
+            finished_at: Some(1760839500.0),
+            exit_code: Some(0),
+            sge_suspended: Some(60.0),
+            ..row(&repo)
+        };
+        let value = |args: &[String], flag: &str| args.iter().position(|a| a == flag).map(|i| args[i + 1].clone());
+        let start = record_args("start", &t, &[]).unwrap();
+        assert_eq!(value(&start, "--host").unwrap(), "big-thumb");
+        assert_eq!(value(&start, "--gpus").unwrap(), "");
+        let finish = record_args("finish", &t, &[]).unwrap();
+        assert_eq!(value(&finish, "--host").unwrap(), "big-thumb");
+        assert_eq!(value(&finish, "--started").unwrap(), "1760839300.0");
+        assert_eq!(
+            value(&finish, "--note").unwrap(),
+            "SGE suspended it for 1m 00s between started and finished, so it ran for 2m 20s."
+        );
+
+        let queue = Task { status: "lost".into(), started_at: None, machine: None, sge_suspended: None, ..t.clone() };
+        let start = record_args("start", &queue, &[]).unwrap();
+        assert_eq!(value(&start, "--host").unwrap(), "grid");
+        assert_eq!(value(&start, "--started").unwrap(), "1760839500.0");
+        assert!(value(&record_args("finish", &queue, &[]).unwrap(), "--note").unwrap().contains("never ran"));
+        let gpu = record_args("finish", &row(&repo), &[]).unwrap();
+        assert_eq!(value(&gpu, "--note"), None);
     }
 
     #[test]

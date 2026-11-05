@@ -481,8 +481,48 @@ impl Daemon {
 
     fn apply_status(&mut self, row: &Task, st: &JobStatus, now: f64) -> Result<(), Error> {
         let (tid, key) = (row.id, row.job_key.clone().unwrap_or_default());
-        let started = st.started.filter(|_| row.started_at.is_none());
-        let row = &Task { started_at: row.started_at.or(started), ..row.clone() };
+        let began = row.started_at.is_none() && st.started.is_some();
+        let mut row = row.clone();
+        if let Some(at) = st.started.filter(|s| row.started_at != Some(*s)) {
+            // The job began on a machine (or SGE restarted it on another): only now is it known
+            // where it runs, and what it runs.
+            row.started_at = Some(at);
+            row.machine = st.machine.clone().or(row.machine);
+            if let Some((commit, dirty)) = jobs::parse_git(&st.git) {
+                row.git_commit = Some(commit);
+                row.git_dirty = Some(dirty);
+                row.git_dirty_paths = Some(jobs::parse_dirty(&st.git).join("\n"));
+            }
+            self.con.execute(
+                "UPDATE tasks SET started_at=?, machine=?, git_commit=?, git_dirty=?, git_dirty_paths=? \
+                 WHERE id=? AND job_key=?",
+                rusqlite::params![
+                    row.started_at,
+                    row.machine,
+                    row.git_commit,
+                    row.git_dirty,
+                    row.git_dirty_paths,
+                    tid,
+                    key
+                ],
+            )?;
+            let mut header = row.machine.as_ref().map_or(String::new(), |m| format!("# machine: {m}\n"));
+            header += &format!("# started: {}\n{}\n", isoformat(at), log_rule());
+            if let Err(e) = append_log(&row, header.as_bytes()) {
+                log(&format!("Task {tid}: cannot append to log: {e}"));
+            }
+        }
+        if let Some(secs) = st.suspended.filter(|s| row.sge_suspended != Some(*s)) {
+            row.sge_suspended = Some(secs);
+            self.con.execute(
+                "UPDATE tasks SET sge_suspended=? WHERE id=? AND job_key=?",
+                rusqlite::params![secs, tid, key],
+            )?;
+        }
+        let row = &row;
+        if began {
+            self.provenance("start", tid, Some(row));
+        }
         if let Some((id, state)) = &st.sge {
             if row.sge_state.as_ref() != Some(state) {
                 log(&format!("Task {tid}: SGE job {id} is {state}."));
@@ -492,24 +532,9 @@ impl Daemon {
                 rusqlite::params![id, state, tid, key],
             )?;
         }
-        if started.is_some() {
-            self.con.execute(
-                "UPDATE tasks SET started_at=? WHERE id=? AND job_key=?",
-                rusqlite::params![started, tid, key],
-            )?;
-        }
         let mut offset = row.log_offset;
         if !st.data.is_empty() {
-            let appended = match &row.log_file {
-                Some(path) => std::fs::OpenOptions::new()
-                    .append(true)
-                    .create(true)
-                    .open(path)
-                    .and_then(|mut f| f.write_all(&st.data))
-                    .map_err(|e| e.to_string()),
-                None => Err("no log file".to_string()),
-            };
-            match appended {
+            match append_log(row, &st.data) {
                 Ok(()) => offset += st.data.len() as i64,
                 Err(e) => log(&format!("Task {tid}: cannot append to log: {e}")),
             }
@@ -524,9 +549,10 @@ impl Daemon {
             return Ok(());
         }
         let sge = row.server.as_ref().and_then(|s| self.cfg().hosts.get(s)).is_some_and(Host::is_sge);
+        let mut gone_at = now;
         if sge && st.state == "gone" {
-            let since = *self.sge_gone.entry(key.clone()).or_insert(now);
-            if now - since < SGE_GONE_POLLS * status_interval() {
+            gone_at = *self.sge_gone.entry(key.clone()).or_insert(now);
+            if now - gone_at < SGE_GONE_POLLS * status_interval() {
                 return Ok(());
             }
         }
@@ -538,7 +564,10 @@ impl Daemon {
         if st.state == "done" {
             self.finish(row, st.rc.unwrap_or(1), st.finished.unwrap_or(now))?;
         } else {
-            self.update_running(tid, &key, "status='lost', exit_code=NULL, finished_at=?", vec![Sql::Real(now)])?;
+            let at = st.finished.unwrap_or(gone_at);
+            let ended = Task { status: "lost".into(), finished_at: Some(at), ..row.clone() };
+            self.provenance("finish", tid, Some(&ended));
+            self.update_running(tid, &key, "status='lost', exit_code=NULL, finished_at=?", vec![Sql::Real(at)])?;
             log(&format!(
                 "Task {tid} lost on {} (job directory {}; not retrying).",
                 row.server.as_deref().unwrap_or("None"),
@@ -731,13 +760,14 @@ impl Daemon {
         // A header for the log
         let mapped = if rdir != wdir { format!("  (mapped from {wdir})") } else { String::new() };
         let header = format!(
-            "# task {task_id}: {}\n# server: {}  CUDA_VISIBLE_DEVICES: {}\n# {}: {}\n# working_dir: {rdir}{mapped}\n{}\n",
+            "# task {task_id}: {}\n# server: {}  CUDA_VISIBLE_DEVICES: {}\n# {}: {}\n# working_dir: {rdir}{mapped}\n{}",
             row.command,
             host.name,
             if gpu_str.is_empty() { "(none)" } else { &gpu_str },
             if host.is_sge() { "submitted" } else { "started" },
             isoformat_now(),
-            "─".repeat(60)
+            // The rest of an SGE task's header comes when it starts: see apply_status.
+            if host.is_sge() { String::new() } else { format!("{}\n", log_rule()) }
         );
         std::fs::write(&log_path, header)?;
 
@@ -779,7 +809,10 @@ impl Daemon {
                     sge_id.unwrap_or(0)
                 )),
             }
-            self.provenance("start", task_id, None);
+            // An SGE task is recorded when it starts: see apply_status.
+            if !host.is_sge() {
+                self.provenance("start", task_id, None);
+            }
             return Ok(());
         }
         if out.rc == 124 {
@@ -815,6 +848,27 @@ impl Daemon {
         }
         Ok(())
     }
+}
+
+/// The line between a log's header and the job's output.
+fn log_rule() -> String {
+    "─".repeat(60)
+}
+
+fn append_log(t: &Task, data: &[u8]) -> Result<(), String> {
+    let Some(path) = &t.log_file else { return Err("no log file".to_string()) };
+    std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(path)
+        .and_then(|mut f| f.write_all(data))
+        .map_err(|e| e.to_string())
+}
+
+/// A time from a job, in the form of [`isoformat_now`] (jobs report whole seconds).
+fn isoformat(ts: f64) -> String {
+    chrono::DateTime::from_timestamp(ts as i64, 0)
+        .map_or(String::new(), |d| d.with_timezone(&chrono::Local).format("%Y-%m-%dT%H:%M:%S").to_string())
 }
 
 /// `datetime.now().isoformat()`: local time, microseconds unless they are zero.

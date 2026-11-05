@@ -38,6 +38,8 @@ function task(id: number, status: string, fields: Partial<Task> = {}): Task {
     no_record: 0,
     sge_job_id: null,
     sge_state: null,
+    machine: null,
+    sge_suspended: null,
     ...fields,
   };
 }

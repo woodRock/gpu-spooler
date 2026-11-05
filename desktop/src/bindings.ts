@@ -340,6 +340,8 @@ export type Task_Deserialize = {
 	no_record?: number,
 	sge_job_id?: number | null,
 	sge_state?: string | null,
+	machine?: string | null,
+	sge_suspended?: number | null,
 };
 
 /**  One row of `tasks`. */
@@ -374,6 +376,8 @@ export type Task_Serialize = {
 	no_record: number,
 	sge_job_id: number | null,
 	sge_state: string | null,
+	machine: string | null,
+	sge_suspended: number | null,
 };
 
 /* Tauri Specta runtime */
