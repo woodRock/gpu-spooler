@@ -928,8 +928,8 @@ mod tests {
         let paths = Paths::for_home(home.path());
         let bin = tempfile::tempdir().unwrap();
         let exe = bin.path().join("task");
-        // Records its argument in its working directory (home), prints to daemon.log, stays alive.
-        std::fs::write(&exe, "#!/bin/sh\necho \"$1\" > started\necho hello from the daemon\nexec sleep 30\n").unwrap();
+        // Prints to daemon.log, records its argument in its working directory (home), stays alive.
+        std::fs::write(&exe, "#!/bin/sh\necho hello from the daemon\necho \"$1\" > started\nexec sleep 30\n").unwrap();
         std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
 
         let pid = start_daemon_with(&paths, &exe).unwrap().expect("started");
