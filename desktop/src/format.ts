@@ -34,6 +34,7 @@ export function shownStatus(t: Task): string {
 /** How long a task ran (so far, if running); null if it never started. */
 export function runtime(t: Task, now: number): number | null {
   if (!t.started_at) return null;
-  if (t.finished_at) return t.finished_at - t.started_at;
-  return t.status === "running" ? now - t.started_at : null;
+  const suspended = t.sge_suspended ?? 0;
+  if (t.finished_at) return Math.max(t.finished_at - t.started_at - suspended, 0);
+  return t.status === "running" ? Math.max(now - t.started_at - suspended, 0) : null;
 }

@@ -42,7 +42,7 @@ pub fn get_task(con: &Connection, id: i64) -> Result<Task, TaskError> {
     db::find_task(con, id)?.ok_or_else(|| TaskError::User(format!("Task {id} not found.")))
 }
 
-/// How long a task ran (so far, if running).
+/// How long a task ran (so far, if running), not counting time SGE kept it suspended.
 pub fn runtime(t: &Task) -> Option<f64> {
     let started = t.started_at.filter(|s| *s != 0.0)?;
     let ended = match t.finished_at.filter(|f| *f != 0.0) {
@@ -50,7 +50,7 @@ pub fn runtime(t: &Task) -> Option<f64> {
         None if t.status == "running" => now(),
         None => return None,
     };
-    Some(ended - started)
+    Some((ended - started - t.sge_suspended.unwrap_or(0.0)).max(0.0))
 }
 
 /// The status to show: a running SGE task says if the grid is holding it back.
@@ -222,6 +222,9 @@ pub fn task_details(t: &Task, cfg: Option<&Config>, snapshot: Option<&Value>, no
     if let Some(id) = t.sge_job_id {
         add("SGE job", format!("{id}{}", t.sge_state.as_ref().map_or(String::new(), |s| format!("  ({s})"))));
     }
+    if let Some(m) = set(&t.machine) {
+        add("Machine", m);
+    }
     if t.status == "running" {
         if let Some(seen) = t.last_seen.filter(|s| *s != 0.0) {
             add("Last seen", format!("{} ago", fmt_duration(Some(now - seen))));
@@ -236,6 +239,9 @@ pub fn task_details(t: &Task, cfg: Option<&Config>, snapshot: Option<&Value>, no
     }
     if started.is_some() {
         add("Runtime", fmt_duration(runtime(t)));
+        if let Some(s) = t.sge_suspended.filter(|s| *s != 0.0) {
+            add("Suspended", format!("{} (not counted in the runtime)", fmt_duration(Some(s))));
+        }
     }
     if let Some(c) = t.exit_code {
         add("Exit code", c.to_string());
@@ -308,7 +314,7 @@ pub fn getuser() -> String {
 /// Fields reset when a task goes back to the queue after a failed launch.
 pub const REQUEUE: &str = "status='queued', ssh_pid=NULL, started_at=NULL, finished_at=NULL, server=NULL, \
 gpu_indices=NULL, job_key=NULL, remote_pid=NULL, log_offset=0, remote_dir=NULL, retry_count=retry_count+1, \
-sge_job_id=NULL, sge_state=NULL";
+sge_job_id=NULL, sge_state=NULL, machine=NULL, sge_suspended=NULL";
 
 /// What `task submit` asks for. From JSON, `command` and `num_gpus` are required (a missing
 /// `num_gpus` must not become a CPU job); everything else defaults.
@@ -890,6 +896,7 @@ mod tests {
     fn running_runtime_counts_to_now() {
         let t = Task { started_at: Some(now() - 65.0), ..task("running") };
         assert_eq!(fmt_duration(runtime(&t)), "1m 05s");
+        assert_eq!(fmt_duration(runtime(&Task { sge_suspended: Some(60.0), ..t.clone() })), "5s");
         assert_eq!(runtime(&task("queued")), None);
     }
 

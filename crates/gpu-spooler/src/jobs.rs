@@ -151,7 +151,7 @@ echo '@@END'
     )
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct JobStatus {
     /// running | done | missing | gone
     pub state: String,
@@ -162,6 +162,12 @@ pub struct JobStatus {
     pub sge: Option<(i64, String)>,
     /// SGE jobs: when the job began running on a grid machine
     pub started: Option<f64>,
+    /// SGE jobs: which machine
+    pub machine: Option<String>,
+    /// SGE jobs: the commit report from that machine, as [`parse_git`] and [`parse_dirty`] read it
+    pub git: String,
+    /// SGE jobs: seconds it has spent suspended
+    pub suspended: Option<f64>,
     /// SGE jobs: when the command ended, which the next poll may be well after
     pub finished: Option<f64>,
 }
@@ -174,18 +180,7 @@ pub fn parse_status(stdout: &str) -> Option<IndexMap<String, JobStatus>> {
     for line in py::splitlines(stdout) {
         if let Some(key) = line.strip_prefix("@@JOB ") {
             let key = py::strip(key).to_string();
-            out.insert(
-                key.clone(),
-                JobStatus {
-                    state: "gone".into(),
-                    rc: None,
-                    size: 0,
-                    data: vec![],
-                    sge: None,
-                    started: None,
-                    finished: None,
-                },
-            );
+            out.insert(key.clone(), JobStatus { state: "gone".into(), ..Default::default() });
             cur = Some(key);
         } else if line == "@@END" {
             complete = true;
@@ -206,10 +201,16 @@ pub fn parse_status(stdout: &str) -> Option<IndexMap<String, JobStatus>> {
                 if let (Some(id), Some(state)) = (parts.get(1).and_then(|p| py::int(p)), parts.get(2)) {
                     st.sge = Some((id, state.to_string()));
                 }
-            } else if let Some(ts) = line.strip_prefix("STARTED ") {
-                st.started = py::strip(ts).parse().ok();
+            } else if line.starts_with("STARTED ") {
+                let parts = py::split(line);
+                st.started = parts.get(1).and_then(|ts| ts.parse().ok());
+                st.machine = parts.get(2).map(|m| m.to_string());
             } else if let Some(ts) = line.strip_prefix("FINISHED ") {
                 st.finished = py::strip(ts).parse().ok();
+            } else if let Some(secs) = line.strip_prefix("SUSPENDED ") {
+                st.suspended = py::strip(secs).parse().ok();
+            } else if line.starts_with("TS_GIT ") || line.starts_with("TS_DIRTY ") {
+                st.git += &format!("{line}\n");
             } else if line.starts_with("DATA") {
                 let data = py::strip(line.get(5..).unwrap_or(""));
                 st.data = base64::engine::general_purpose::STANDARD.decode(data).ok()?;
@@ -280,9 +281,33 @@ fi
     )
 }
 
+/// Seconds between the job's looks at the clock, see [`sge_watch`].
+const SGE_WATCH_SECS: u32 = 5;
+
+/// Lines that keep the job's suspended seconds in $D/suspended, in the background ($ts_watch).
+/// SGE suspends a job by stopping its processes, this loop included, so the time it loses is the
+/// time the job was stopped, less up to `every` seconds for each stop (a stopped `sleep` still
+/// runs out). qacct would say this, but the ECS Grid keeps no accounting file.
+fn sge_watch(every: u32) -> String {
+    let least = every / 2 + 1; // less is a busy machine, not a stop
+    format!(
+        r#"( ts_last=$(date +%s); ts_off=0
+  while sleep {every}; do
+    ts_now=$(date +%s); ts_gap=$((ts_now - ts_last - {every})); ts_last=$ts_now
+    if [ "$ts_gap" -ge {least} ]; then ts_off=$((ts_off + ts_gap)); echo "$ts_off" > "$D/suspended"; fi
+  done ) > /dev/null 2>&1 < /dev/null &
+ts_watch=$!
+disown "$ts_watch"
+"#
+    )
+}
+
 /// Script (for `bash -s` on a submit host) that hands a job to SGE and prints `TS_SGE_JOB <id>`.
 /// The job directory is on NFS, so the submit host can follow the job like any other. The command
 /// runs in `wdir`, with the machine's scratch directory (deleted after the job) in $TASK_SCRATCH.
+/// The job can wait in the queue for hours, so what a GPU job reports at launch this one reports
+/// when it starts: `started` holds the time and machine, once `git` holds the commit it will run.
+/// A job SGE restarts runs all of this again.
 pub fn sge_submit_script(host: &Host, key: &str, wdir: &str, command: &str, probe: Option<&str>) -> String {
     let q_wdir = sh_path(wdir);
     let tag = key.replace('-', "_");
@@ -293,20 +318,28 @@ pub fn sge_submit_script(host: &Host, key: &str, wdir: &str, command: &str, prob
     let user = host.user.as_deref().unwrap_or_default();
     let template = sge_template(user, &host.sge_wd);
     let (settings, queue) = (sh_path(&host.sge_settings), quote(&host.sge_queue));
+    let watch = sge_watch(SGE_WATCH_SECS);
     format!(
         r#". {settings} || exit 1
 D="{JOBS_DIR}/{key}"
 mkdir -p "$D" || exit 1
 {probe_file}cat > "$D/run.sh" <<'{eof}'
 D="{JOBS_DIR}/{key}"
-date +%s > "$D/started"
+ts_started=$(date +%s)
+ts_machine=$(hostname -s 2>/dev/null || hostname)
+ts_report() {{ echo "$ts_started $ts_machine" > "$D/started.tmp" && mv "$D/started.tmp" "$D/started"; }}
+rm -f "$D/finished" "$D/suspended"
 source ~/.bashrc 2>/dev/null || true
 ls {q_wdir} > /dev/null 2>&1
-cd {q_wdir} || {{ echo "gpu-spooler: cannot cd to "{q_wdir} >&2; echo 1 > "$D/rc.tmp"; mv "$D/rc.tmp" "$D/rc"; exit 1; }}
+cd {q_wdir} || {{ ts_report; echo "gpu-spooler: cannot cd to "{q_wdir} >&2; date +%s > "$D/finished"; echo 1 > "$D/rc.tmp"; mv "$D/rc.tmp" "$D/rc"; exit 1; }}
 export TASK_SCRATCH="/local/tmp/{user}/$JOB_ID"
-{probe_run}( {command}
+(
+{git}) > "$D/git" 2>/dev/null
+ts_report
+{watch}{probe_run}( {command}
 )
 rc=$?
+kill "$ts_watch" 2>/dev/null
 date +%s > "$D/finished"
 echo "$rc" > "$D/rc.tmp" && mv "$D/rc.tmp" "$D/rc"
 exit $rc
@@ -348,6 +381,8 @@ for spec in {items}; do
   else echo 'STATE gone'; fi
   [ -z "$S" ] || printf 'SGE %s %s\n' "$J" "$S"
   [ ! -f "$D/started" ] || printf 'STARTED %s\n' "$(cat "$D/started")"
+  [ ! -f "$D/git" ] || cat "$D/git"
+  [ ! -f "$D/suspended" ] || printf 'SUSPENDED %s\n' "$(cat "$D/suspended")"
   [ ! -f "$D/finished" ] || printf 'FINISHED %s\n' "$(cat "$D/finished")"
   printf 'SIZE %s\n' "$(wc -c < "$D/out.log" 2>/dev/null | tr -d ' ' || echo 0)"
   printf 'DATA '; tail -c +$((off+1)) "$D/out.log" 2>/dev/null | head -c {CHUNK_BYTES} | base64 | tr -d '\n'; echo
@@ -491,7 +526,10 @@ mod tests {
             std::fs::write(jobs.join(key).join("sgeid"), format!("{id}\n")).unwrap();
         }
         std::fs::write(jobs.join("1-aaaaaa/out.log"), "hi\n").unwrap();
-        std::fs::write(jobs.join("1-aaaaaa/started"), "1700000000\n").unwrap();
+        std::fs::write(jobs.join("1-aaaaaa/started"), "1700000000 big-thumb\n").unwrap();
+        std::fs::write(jobs.join("1-aaaaaa/git"), "TS_GIT abc 1\nTS_DIRTY results/a.json\n").unwrap();
+        std::fs::write(jobs.join("1-aaaaaa/suspended"), "120\n").unwrap();
+        std::fs::write(jobs.join("2-bbbbbb/started"), "1700000000\n").unwrap(); // from an older version
         std::fs::write(jobs.join("4-dddddd/rc"), "5\n").unwrap();
         let specs: Vec<(String, i64)> =
             ["1-aaaaaa", "2-bbbbbb", "3-cccccc", "4-dddddd", "5-eeeeee"].iter().map(|k| (k.to_string(), 0)).collect();
@@ -499,6 +537,12 @@ mod tests {
         assert_eq!(st["1-aaaaaa"].state, "running");
         assert_eq!(st["1-aaaaaa"].sge, Some((77, "qw".to_string())));
         assert_eq!(st["1-aaaaaa"].started, Some(1700000000.0));
+        assert_eq!(st["1-aaaaaa"].machine.as_deref(), Some("big-thumb"));
+        assert_eq!(parse_git(&st["1-aaaaaa"].git), Some(("abc".to_string(), 1)));
+        assert_eq!(parse_dirty(&st["1-aaaaaa"].git), ["results/a.json"]);
+        assert_eq!(st["1-aaaaaa"].suspended, Some(120.0));
+        assert_eq!(st["2-bbbbbb"].started, Some(1700000000.0));
+        assert_eq!(st["2-bbbbbb"].machine, None);
         assert_eq!(st["1-aaaaaa"].data, b"hi\n");
         assert_eq!(st["2-bbbbbb"].sge, Some((78, "Eqw".to_string())));
         assert_eq!(st["3-cccccc"].state, "gone");
@@ -508,6 +552,24 @@ mod tests {
         // qstat failing says nothing about the jobs.
         let broken = sge_status_script(&host, &specs).replacen(". ", "QS=1; . ", 1);
         assert_eq!(parse_status(&bash(&broken, home.path())), None);
+    }
+
+    #[test]
+    fn sge_watch_counts_only_stopped_time() {
+        use std::os::unix::process::CommandExt;
+        let dir = tempfile::tempdir().unwrap();
+        let script = format!("D={:?}\n{}sleep 8\nkill \"$ts_watch\"\n", dir.path().display(), sge_watch(2));
+        let mut child = Command::new("bash").arg("-c").arg(script).process_group(0).spawn().unwrap();
+        let group = -(child.id() as libc::pid_t);
+        let signal = |sig| assert_eq!(unsafe { libc::kill(group, sig) }, 0);
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        assert!(!dir.path().join("suspended").exists(), "nothing stopped it yet");
+        signal(libc::SIGSTOP);
+        std::thread::sleep(std::time::Duration::from_secs(4));
+        signal(libc::SIGCONT);
+        child.wait().unwrap();
+        let secs: i64 = std::fs::read_to_string(dir.path().join("suspended")).unwrap().trim().parse().unwrap();
+        assert!((2..=6).contains(&secs), "{secs}");
     }
 
     #[test]

@@ -40,8 +40,9 @@ for d in (metadata.distributions() if metadata else []):
 gpus = []
 try:
     out = subprocess.run(["nvidia-smi", "--query-gpu=index,name,driver_version", "--format=csv,noheader"],
-                         capture_output=True, text=True, timeout=20).stdout
-    gpus = [line.strip() for line in out.splitlines() if line.strip()]
+                         capture_output=True, text=True, timeout=20)
+    if out.returncode == 0:
+        gpus = [line.strip() for line in out.stdout.splitlines() if line.strip()]
 except Exception:
     pass
 
